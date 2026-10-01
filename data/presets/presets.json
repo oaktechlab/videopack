@@ -1,0 +1,41 @@
+[
+  {
+    "name": "Master",
+    "displayName": "MASTER",
+    "height": 3840,
+    "videoBitrateKbps": 16000,
+    "format": "Landscape",
+    "framing": "Fit",
+    "fps": 25,
+    "videoCodec": "libx264",
+    "audioCodec": "aac",
+    "audioBitrateKbps": 192,
+    "description": "4K · 16 Mbps"
+  },
+  {
+    "name": "Youtube",
+    "displayName": "YOUTUBE",
+    "height": 1920,
+    "videoBitrateKbps": 5000,
+    "format": "Landscape",
+    "framing": "Fit",
+    "fps": 25,
+    "videoCodec": "libx264",
+    "audioCodec": "aac",
+    "audioBitrateKbps": 192,
+    "description": "1080p · 5 Mbps"
+  },
+  {
+    "name": "Social",
+    "displayName": "REDES",
+    "height": 1280,
+    "videoBitrateKbps": 2000,
+    "format": "Portrait",
+    "framing": "Crop",
+    "fps": 25,
+    "videoCodec": "libx264",
+    "audioCodec": "aac",
+    "audioBitrateKbps": 192,
+    "description": "720p · 2 Mbps"
+  }
+]

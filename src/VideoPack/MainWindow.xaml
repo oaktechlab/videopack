@@ -1,0 +1,991 @@
+<Window x:Class="VideoPack.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:local="clr-namespace:VideoPack"
+        xmlns:infra="clr-namespace:VideoPack.Infrastructure"
+        xmlns:m="clr-namespace:VideoPack.Models"
+        xmlns:vm="clr-namespace:VideoPack.ViewModels"
+        Title="VideoPack" Icon="Assets/videopack.ico" Width="1440" Height="900" MinWidth="1100" MinHeight="660"
+        Background="{DynamicResource CanvasBrush}" Foreground="{DynamicResource InkBrush}"
+        FontFamily="{StaticResource UiFont}" FontSize="14" UseLayoutRounding="True"
+        WindowStartupLocation="CenterScreen" Loaded="Window_Loaded"
+        AllowDrop="True" DragEnter="Window_DragEnter" DragOver="Window_DragOver" Drop="Window_Drop">
+  <Window.Resources>
+    <infra:BoolVisibilityConverter x:Key="Vis" />
+    <infra:EqualsConverter x:Key="Eq" />
+
+    <!-- Mid-tone checkerboard: keeps both white and black logos legible. -->
+    <DrawingBrush x:Key="Checker" TileMode="Tile" Viewport="0,0,10,10" ViewportUnits="Absolute" Viewbox="0,0,10,10" ViewboxUnits="Absolute">
+      <DrawingBrush.Drawing>
+        <DrawingGroup>
+          <GeometryDrawing Brush="#A9B0B9" Geometry="M0,0 H10 V10 H0 Z" />
+          <GeometryDrawing Brush="#9CA3AD" Geometry="M0,0 H5 V5 H0 Z M5,5 H10 V10 H5 Z" />
+        </DrawingGroup>
+      </DrawingBrush.Drawing>
+    </DrawingBrush>
+
+    <!-- Stand-in "photo" used by the framing illustrations. -->
+    <DrawingBrush x:Key="PictureBrush" Stretch="UniformToFill">
+      <DrawingBrush.Drawing>
+        <DrawingGroup>
+          <GeometryDrawing Geometry="M0,0 H160 V90 H0 Z">
+            <GeometryDrawing.Brush>
+              <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                <GradientStop Color="#8DBCEB" Offset="0" />
+                <GradientStop Color="#DCEBF8" Offset="1" />
+              </LinearGradientBrush>
+            </GeometryDrawing.Brush>
+          </GeometryDrawing>
+          <GeometryDrawing Brush="#FFD37D"><GeometryDrawing.Geometry><EllipseGeometry Center="120,26" RadiusX="9" RadiusY="9" /></GeometryDrawing.Geometry></GeometryDrawing>
+          <GeometryDrawing Brush="#6A98C9" Geometry="M0,90 L0,60 L34,36 L58,54 L86,28 L122,58 L160,42 L160,90 Z" />
+          <GeometryDrawing Brush="#3E6E9F" Geometry="M0,90 L0,74 L40,60 L80,72 L120,58 L160,70 L160,90 Z" />
+        </DrawingGroup>
+      </DrawingBrush.Drawing>
+    </DrawingBrush>
+
+    <Style x:Key="FadeIn" TargetType="FrameworkElement">
+      <Setter Property="RenderTransform"><Setter.Value><TranslateTransform /></Setter.Value></Setter>
+      <Style.Triggers>
+        <Trigger Property="IsVisible" Value="True">
+          <Trigger.EnterActions>
+            <BeginStoryboard>
+              <Storyboard>
+                <DoubleAnimation Storyboard.TargetProperty="Opacity" From="0" To="1" Duration="0:0:0.22" />
+                <DoubleAnimation Storyboard.TargetProperty="(UIElement.RenderTransform).(TranslateTransform.Y)" From="6" To="0" Duration="0:0:0.22">
+                  <DoubleAnimation.EasingFunction><CubicEase EasingMode="EaseOut" /></DoubleAnimation.EasingFunction>
+                </DoubleAnimation>
+              </Storyboard>
+            </BeginStoryboard>
+          </Trigger.EnterActions>
+        </Trigger>
+      </Style.Triggers>
+    </Style>
+
+    <Style x:Key="SurfaceCard" TargetType="Border" BasedOn="{StaticResource FadeIn}">
+      <Setter Property="Background" Value="{DynamicResource SurfaceBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource StrokeBrush}" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="14" />
+      <Setter Property="SnapsToDevicePixels" Value="True" />
+    </Style>
+    <Style x:Key="DangerBanner" TargetType="Border" BasedOn="{StaticResource FadeIn}">
+      <Setter Property="Background" Value="{DynamicResource DangerSoftBrush}" />
+      <Setter Property="CornerRadius" Value="10" />
+      <Setter Property="Padding" Value="14,12" />
+    </Style>
+    <Style x:Key="InfoBanner" TargetType="Border" BasedOn="{StaticResource DangerBanner}">
+      <Setter Property="Background" Value="{DynamicResource SurfaceAltBrush}" />
+    </Style>
+
+    <Style x:Key="StepBadge" TargetType="Border">
+      <Setter Property="Width" Value="24" />
+      <Setter Property="Height" Value="24" />
+      <Setter Property="CornerRadius" Value="12" />
+      <Setter Property="Background" Value="{DynamicResource SurfacePressedBrush}" />
+      <Setter Property="Margin" Value="0,1,12,0" />
+      <Setter Property="VerticalAlignment" Value="Top" />
+      <Setter Property="DockPanel.Dock" Value="Left" />
+    </Style>
+    <Style x:Key="StepNumber" TargetType="TextBlock">
+      <Setter Property="FontSize" Value="12" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="Foreground" Value="{DynamicResource Ink2Brush}" />
+      <Setter Property="HorizontalAlignment" Value="Center" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+    <Style x:Key="SectionTitle" TargetType="TextBlock">
+      <Setter Property="FontSize" Value="18" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+    <Style x:Key="SectionSubtitle" TargetType="TextBlock">
+      <Setter Property="FontSize" Value="13" />
+      <Setter Property="Foreground" Value="{DynamicResource Ink2Brush}" />
+      <Setter Property="Margin" Value="0,2,0,0" />
+      <Setter Property="TextWrapping" Value="Wrap" />
+    </Style>
+    <Style x:Key="FieldLabel" TargetType="TextBlock">
+      <Setter Property="FontSize" Value="13" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="Foreground" Value="{DynamicResource Ink2Brush}" />
+      <Setter Property="Margin" Value="0,0,0,8" />
+    </Style>
+    <Style x:Key="Caption" TargetType="TextBlock">
+      <Setter Property="FontSize" Value="12" />
+      <Setter Property="Foreground" Value="{DynamicResource Ink3Brush}" />
+    </Style>
+    <Style x:Key="Unit" TargetType="TextBlock" BasedOn="{StaticResource Caption}">
+      <Setter Property="FontSize" Value="13" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+      <Setter Property="Margin" Value="10,0,0,0" />
+    </Style>
+
+    <!-- State-aware glyph segments: blue when the element is included, grey otherwise. -->
+    <Style x:Key="IntroGlyph" TargetType="Border">
+      <Setter Property="Background" Value="{DynamicResource GlyphBrush}" />
+      <Style.Triggers><DataTrigger Binding="{Binding ShowIntroInTimeline}" Value="True"><Setter Property="Background" Value="{DynamicResource AccentBrush}" /></DataTrigger></Style.Triggers>
+    </Style>
+    <Style x:Key="OutroGlyph" TargetType="Border">
+      <Setter Property="Background" Value="{DynamicResource GlyphBrush}" />
+      <Style.Triggers><DataTrigger Binding="{Binding AddOutro}" Value="True"><Setter Property="Background" Value="{DynamicResource AccentBrush}" /></DataTrigger></Style.Triggers>
+    </Style>
+    <Style x:Key="WatermarkGlyph" TargetType="Border">
+      <Setter Property="Background" Value="{DynamicResource GlyphBrush}" />
+      <Style.Triggers><DataTrigger Binding="{Binding WatermarkEnabled}" Value="True"><Setter Property="Background" Value="{DynamicResource AccentBrush}" /></DataTrigger></Style.Triggers>
+    </Style>
+
+    <Style x:Key="DropZone" TargetType="Button">
+      <Setter Property="Foreground" Value="{DynamicResource InkBrush}" />
+      <Setter Property="Cursor" Value="Hand" />
+      <Setter Property="Height" Value="232" />
+      <Setter Property="FocusVisualStyle" Value="{StaticResource FocusRing}" />
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="Button">
+            <Grid>
+              <Rectangle x:Name="Dash" RadiusX="14" RadiusY="14" Fill="{DynamicResource SurfaceBrush}" Stroke="{DynamicResource DashBrush}" StrokeThickness="1.5" StrokeDashArray="5 4" />
+              <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+            </Grid>
+            <ControlTemplate.Triggers>
+              <Trigger Property="IsMouseOver" Value="True">
+                <Setter TargetName="Dash" Property="Stroke" Value="{DynamicResource AccentBrush}" />
+                <Setter TargetName="Dash" Property="Fill" Value="{DynamicResource DropZoneHoverBrush}" />
+              </Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+
+    <Style x:Key="CornerButton" TargetType="Button">
+      <Setter Property="Cursor" Value="Hand" />
+      <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="Button">
+            <Border x:Name="Bd" Background="Transparent" CornerRadius="5">
+              <ContentPresenter HorizontalAlignment="Stretch" VerticalAlignment="Stretch" />
+            </Border>
+            <ControlTemplate.Triggers>
+              <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Bd" Property="Background" Value="#26FFFFFF" /></Trigger>
+              <Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="Bd" Property="Background" Value="#33FFFFFF" /></Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+
+    <Style x:Key="LogoGallery" TargetType="ListBox">
+      <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="ListBox"><ItemsPresenter /></ControlTemplate></Setter.Value></Setter>
+      <Setter Property="ItemsPanel"><Setter.Value><ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate></Setter.Value></Setter>
+      <Setter Property="ItemContainerStyle">
+        <Setter.Value>
+          <Style TargetType="ListBoxItem">
+            <Setter Property="Margin" Value="0,0,6,6" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="ToolTip" Value="{Binding Name}" />
+            <Setter Property="AutomationProperties.Name" Value="{Binding Name}" />
+            <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+            <Setter Property="Template">
+              <Setter.Value>
+                <ControlTemplate TargetType="ListBoxItem">
+                  <Border x:Name="Ring" CornerRadius="10" BorderThickness="2" BorderBrush="Transparent" Padding="2">
+                    <Border CornerRadius="7" Background="{StaticResource Checker}" Width="78" Height="46">
+                      <Image Source="{Binding ImagePath}" Margin="10,8" Stretch="Uniform" RenderOptions.BitmapScalingMode="HighQuality" />
+                    </Border>
+                  </Border>
+                  <ControlTemplate.Triggers>
+                    <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Ring" Property="BorderBrush" Value="{DynamicResource StrokeStrongBrush}" /></Trigger>
+                    <Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="Ring" Property="BorderBrush" Value="{DynamicResource AccentMutedBrush}" /></Trigger>
+                    <Trigger Property="IsSelected" Value="True"><Setter TargetName="Ring" Property="BorderBrush" Value="{DynamicResource AccentBrush}" /></Trigger>
+                  </ControlTemplate.Triggers>
+                </ControlTemplate>
+              </Setter.Value>
+            </Setter>
+          </Style>
+        </Setter.Value>
+      </Setter>
+    </Style>
+
+    <Style x:Key="SummaryLine" TargetType="TextBlock">
+      <Setter Property="FontSize" Value="13" />
+      <Setter Property="Margin" Value="12,0,0,0" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+      <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+    </Style>
+  </Window.Resources>
+
+  <Grid>
+    <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
+
+    <!-- App bar -->
+    <Border Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource StrokeBrush}" BorderThickness="0,0,0,1" Height="56" Padding="24,0,16,0">
+      <Grid>
+        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+          <Grid VerticalAlignment="Center">
+            <!-- Wordmark: the two dots replace the "i" and must span exactly the font's x-height. -->
+            <TextBlock FontSize="24" FontWeight="Bold" Foreground="{DynamicResource InkBrush}" VerticalAlignment="Center" Margin="0,0,0,3"
+                       Visibility="{DynamicResource LightOnlyVisibility}" AutomationProperties.Name="VideoPack"><Run Text="v" /><InlineUIContainer BaselineAlignment="Baseline"><StackPanel Margin="1.5,0,1.5,0">
+                  <Ellipse Width="5.6" Height="5.6" Fill="#FC5302" />
+                  <Ellipse Width="5.6" Height="5.6" Fill="#FC5302" Margin="0,1.2,0,0" />
+                </StackPanel></InlineUIContainer><Run Text="deopack" /></TextBlock>
+            <Image Source="Assets/videopack_logo_white.png" Height="25" HorizontalAlignment="Left" VerticalAlignment="Center" Stretch="Uniform"
+                   RenderOptions.BitmapScalingMode="HighQuality" Visibility="{DynamicResource DarkOnlyVisibility}" AutomationProperties.Name="VideoPack" />
+          </Grid>
+          <TextBlock Text="{x:Static local:AppVersion.Label}" Style="{StaticResource Caption}" VerticalAlignment="Center" Margin="12,3,0,0"
+                     AutomationProperties.Name="{x:Static local:AppVersion.About}" />
+        </StackPanel>
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+          <Button x:Name="HelpButton" Style="{StaticResource GhostButton}" Click="Help_Click" AutomationProperties.Name="Ayuda">
+            <StackPanel Orientation="Horizontal"><TextBlock Text="&#xE897;" FontFamily="{StaticResource IconFont}" FontSize="14" VerticalAlignment="Center" /><TextBlock Text="Ayuda" FontSize="13" Margin="8,0,0,1" VerticalAlignment="Center" /></StackPanel>
+          </Button>
+          <Button Style="{StaticResource GhostButton}" Click="ThemeToggle_Click" Margin="4,0,0,0" AutomationProperties.AutomationId="ThemeToggleButton"
+                  AutomationProperties.Name="{DynamicResource ThemeToggleLabel}" ToolTip="Cambiar entre modo claro y oscuro">
+            <StackPanel Orientation="Horizontal"><TextBlock Text="{DynamicResource ThemeToggleGlyph}" FontFamily="{StaticResource IconFont}" FontSize="14" VerticalAlignment="Center" /><TextBlock Text="{DynamicResource ThemeToggleLabel}" FontSize="13" Margin="8,0,0,1" VerticalAlignment="Center" /></StackPanel>
+          </Button>
+        </StackPanel>
+      </Grid>
+    </Border>
+
+    <Grid Grid.Row="1">
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="*" MinWidth="640" />
+        <ColumnDefinition Width="0.45*" MinWidth="400" MaxWidth="600" />
+      </Grid.ColumnDefinitions>
+
+      <!-- ============ Setup flow ============ -->
+      <ScrollViewer x:Name="SetupScroll" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Focusable="False">
+        <StackPanel MaxWidth="820" Margin="40,32,40,56">
+
+          <!-- 1 · Video -->
+          <StackPanel Margin="0,0,0,40">
+            <DockPanel Margin="0,0,0,16">
+              <Border Style="{StaticResource StepBadge}"><TextBlock Text="1" Style="{StaticResource StepNumber}" /></Border>
+              <TextBlock Text="Tu vídeo" Style="{StaticResource SectionTitle}" />
+            </DockPanel>
+
+            <Button Style="{StaticResource DropZone}" Click="SelectVideo_Click" IsEnabled="{Binding IsIdle}"
+                    AutomationProperties.AutomationId="SelectVideoButton" AutomationProperties.Name="Elegir vídeo"
+                    Visibility="{Binding HasVideo, Converter={StaticResource Vis}, ConverterParameter=Invert}">
+              <Grid>
+                <StackPanel HorizontalAlignment="Center" Visibility="{Binding IsAnalyzing, Converter={StaticResource Vis}, ConverterParameter=Invert}">
+                  <Border Width="56" Height="56" CornerRadius="28" Background="{DynamicResource AccentSoftBrush}" HorizontalAlignment="Center">
+                    <TextBlock Text="&#xE898;" FontFamily="{StaticResource IconFont}" FontSize="22" Foreground="{DynamicResource AccentBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                  </Border>
+                  <TextBlock Text="Arrastra tu vídeo aquí" FontSize="18" FontWeight="SemiBold" HorizontalAlignment="Center" Margin="0,16,0,0" />
+                  <TextBlock FontSize="14" Foreground="{DynamicResource Ink2Brush}" HorizontalAlignment="Center" Margin="0,4,0,0">
+                    <Run Text="o" /> <Run Text="haz clic para elegirlo" Foreground="{DynamicResource AccentTextBrush}" FontWeight="SemiBold" />
+                  </TextBlock>
+                  <TextBlock Text="MP4, MOV, MKV, AVI, M4V o WEBM" Style="{StaticResource Caption}" HorizontalAlignment="Center" Margin="0,16,0,0" />
+                </StackPanel>
+                <StackPanel HorizontalAlignment="Center" Visibility="{Binding IsAnalyzing, Converter={StaticResource Vis}}">
+                  <Path Width="30" Height="30" Stroke="{DynamicResource AccentBrush}" StrokeThickness="3" StrokeStartLineCap="Round" StrokeEndLineCap="Round"
+                        Data="M 15,2 A 13,13 0 1 1 2,15" RenderTransformOrigin="0.5,0.5" HorizontalAlignment="Center">
+                    <Path.RenderTransform><RotateTransform /></Path.RenderTransform>
+                    <Path.Triggers>
+                      <EventTrigger RoutedEvent="Loaded">
+                        <BeginStoryboard><Storyboard RepeatBehavior="Forever"><DoubleAnimation Storyboard.TargetProperty="(UIElement.RenderTransform).(RotateTransform.Angle)" From="0" To="360" Duration="0:0:0.9" /></Storyboard></BeginStoryboard>
+                      </EventTrigger>
+                    </Path.Triggers>
+                  </Path>
+                  <TextBlock Text="Analizando vídeo…" FontSize="15" FontWeight="SemiBold" HorizontalAlignment="Center" Margin="0,14,0,0" />
+                </StackPanel>
+              </Grid>
+            </Button>
+
+            <Border Style="{StaticResource SurfaceCard}" Padding="16" Visibility="{Binding HasVideo, Converter={StaticResource Vis}}">
+              <Grid>
+                <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                <Grid Width="176" Height="99">
+                  <Border CornerRadius="8" Background="{DynamicResource FrameBrush}">
+                    <TextBlock Text="&#xE714;" FontFamily="{StaticResource IconFont}" FontSize="22" Foreground="#6B7380" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                  </Border>
+                  <Border CornerRadius="8"><Border.Background><ImageBrush ImageSource="{Binding ThumbnailImage}" Stretch="UniformToFill" /></Border.Background></Border>
+                  <Border Background="#B8000000" CornerRadius="4" Padding="6,1,6,2" HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="7">
+                    <TextBlock Text="{Binding VideoDurationLabel}" Foreground="White" FontSize="12" FontWeight="SemiBold" />
+                  </Border>
+                </Grid>
+                <StackPanel Grid.Column="1" Margin="20,0,16,0" VerticalAlignment="Center">
+                  <TextBlock Text="{Binding VideoName}" FontSize="17" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" ToolTip="{Binding PreviewPath}" />
+                  <TextBlock Text="{Binding VideoPrimaryDetails}" Foreground="{DynamicResource Ink2Brush}" Margin="0,6,0,0" TextTrimming="CharacterEllipsis" />
+                  <TextBlock Text="{Binding VideoSecondaryDetails}" Style="{StaticResource Caption}" Margin="0,4,0,0" TextTrimming="CharacterEllipsis" />
+                </StackPanel>
+                <Button Grid.Column="2" Style="{StaticResource SecondaryButton}" Content="Cambiar vídeo" Click="SelectVideo_Click" VerticalAlignment="Center"
+                        IsEnabled="{Binding IsIdle}" AutomationProperties.AutomationId="ChangeVideoButton" />
+              </Grid>
+            </Border>
+
+            <Border Style="{StaticResource DangerBanner}" Margin="0,12,0,0" Visibility="{Binding HasLoadError, Converter={StaticResource Vis}}">
+              <Grid>
+                <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                <TextBlock Text="&#xE783;" FontFamily="{StaticResource IconFont}" FontSize="16" Foreground="{DynamicResource DangerBrush}" Margin="0,2,12,0" />
+                <StackPanel Grid.Column="1">
+                  <TextBlock Text="{Binding ErrorMessage}" TextWrapping="Wrap" FontSize="13.5" />
+                  <Expander Style="{StaticResource Disclosure}" Header="Ver detalles" Margin="0,4,0,0" Visibility="{Binding HasErrorDetails, Converter={StaticResource Vis}}">
+                    <TextBox Text="{Binding ErrorDetails, Mode=OneWay}" IsReadOnly="True" TextWrapping="Wrap" FontFamily="Consolas" FontSize="11.5" Foreground="{DynamicResource Ink2Brush}" Background="Transparent" BorderThickness="0" MaxHeight="140" VerticalScrollBarVisibility="Auto" />
+                  </Expander>
+                </StackPanel>
+              </Grid>
+            </Border>
+          </StackPanel>
+
+          <!-- 2 · Destination / quality preset -->
+          <StackPanel Margin="0,0,0,40">
+            <DockPanel Margin="0,0,0,16">
+              <Border Style="{StaticResource StepBadge}"><TextBlock Text="2" Style="{StaticResource StepNumber}" /></Border>
+              <StackPanel>
+                <TextBlock Text="¿Para qué es el vídeo?" Style="{StaticResource SectionTitle}" />
+                <TextBlock Text="Elige el destino y ajustamos la calidad por ti." Style="{StaticResource SectionSubtitle}" />
+              </StackPanel>
+            </DockPanel>
+            <ItemsControl ItemsSource="{Binding Presets}" Margin="-5,0" Focusable="False">
+              <ItemsControl.ItemsPanel><ItemsPanelTemplate><UniformGrid Rows="1" /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+              <ItemsControl.ItemTemplate>
+                <DataTemplate>
+                  <Button Style="{StaticResource TileButton}" Margin="5" Padding="16,16,14,14" MinHeight="148"
+                          Command="{Binding DataContext.SelectPresetCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding Value}"
+                          Click="PresetTile_Click" AutomationProperties.Name="{Binding Title}">
+                    <Grid>
+                      <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="*" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+                      <Border x:Name="Well" Width="36" Height="36" CornerRadius="10" Background="{DynamicResource SurfaceAltBrush}" HorizontalAlignment="Left">
+                        <TextBlock x:Name="Glyph" Text="{Binding Symbol}" FontFamily="{StaticResource IconFont}" FontSize="16" Foreground="{DynamicResource Ink2Brush}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                      </Border>
+                      <Border x:Name="Check" Width="20" Height="20" CornerRadius="10" Background="{DynamicResource AccentBrush}" HorizontalAlignment="Right" VerticalAlignment="Top" Visibility="Collapsed">
+                        <TextBlock Text="&#xE73E;" FontFamily="{StaticResource IconFont}" FontSize="10" Foreground="White" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                      </Border>
+                      <TextBlock Grid.Row="1" Text="{Binding Title}" FontSize="15" FontWeight="SemiBold" Margin="0,14,0,0" />
+                      <TextBlock Grid.Row="2" Text="{Binding Description}" FontSize="12.5" Foreground="{DynamicResource Ink2Brush}" TextWrapping="Wrap" Margin="0,3,0,0" />
+                      <TextBlock Grid.Row="4" Text="{Binding Hint}" Style="{StaticResource Caption}" Margin="0,10,0,0" />
+                    </Grid>
+                  </Button>
+                  <DataTemplate.Triggers>
+                    <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                      <Setter TargetName="Well" Property="Background" Value="{DynamicResource AccentMutedBrush}" />
+                      <Setter TargetName="Glyph" Property="Foreground" Value="{DynamicResource AccentBrush}" />
+                      <Setter TargetName="Check" Property="Visibility" Value="Visible" />
+                    </DataTrigger>
+                  </DataTemplate.Triggers>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+
+            <Expander x:Name="AdvancedOptionsExpander" Style="{StaticResource Disclosure}" Header="Opciones avanzadas" Margin="0,12,0,0">
+              <Border Style="{StaticResource SurfaceCard}" Padding="20,18" Margin="0,8,0,0">
+                <Grid>
+                  <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="28" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                  <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="18" /><RowDefinition Height="Auto" /><RowDefinition Height="18" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+
+                  <StackPanel>
+                    <TextBlock Text="Resolución" Style="{StaticResource FieldLabel}" />
+                    <StackPanel Orientation="Horizontal">
+                      <TextBox Style="{StaticResource Field}" Width="88" Text="{Binding OutputWidth, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Ancho" />
+                      <TextBlock Text="×" Style="{StaticResource Unit}" Margin="10,0" />
+                      <TextBox Style="{StaticResource Field}" Width="88" Text="{Binding OutputHeight, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Alto" />
+                      <TextBlock Text="px" Style="{StaticResource Unit}" />
+                    </StackPanel>
+                  </StackPanel>
+                  <StackPanel Grid.Column="2">
+                    <TextBlock Text="Fotogramas por segundo" Style="{StaticResource FieldLabel}" />
+                    <StackPanel Orientation="Horizontal">
+                      <TextBox Style="{StaticResource Field}" Width="88" Text="{Binding Fps, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Fotogramas por segundo" />
+                      <TextBlock Text="fps" Style="{StaticResource Unit}" />
+                    </StackPanel>
+                  </StackPanel>
+
+                  <StackPanel Grid.Row="2">
+                    <TextBlock Text="Bitrate de vídeo" Style="{StaticResource FieldLabel}" />
+                    <StackPanel Orientation="Horizontal">
+                      <TextBox Style="{StaticResource Field}" Width="110" Text="{Binding VideoBitrate, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Bitrate de vídeo" />
+                      <TextBlock Text="kbps" Style="{StaticResource Unit}" />
+                    </StackPanel>
+                  </StackPanel>
+                  <StackPanel Grid.Row="2" Grid.Column="2">
+                    <TextBlock Text="Códec de vídeo" Style="{StaticResource FieldLabel}" />
+                    <Border Style="{StaticResource SegmentGroup}" HorizontalAlignment="Left">
+                      <UniformGrid Rows="1">
+                        <RadioButton Style="{StaticResource Segment}" Content="H.264" MinWidth="84" IsChecked="{Binding VideoCodec, Converter={StaticResource Eq}, ConverterParameter=libx264}" />
+                        <RadioButton Style="{StaticResource Segment}" Content="H.265" MinWidth="84" IsChecked="{Binding VideoCodec, Converter={StaticResource Eq}, ConverterParameter=libx265}" />
+                      </UniformGrid>
+                    </Border>
+                  </StackPanel>
+
+                  <StackPanel Grid.Row="4">
+                    <TextBlock Text="Códec de audio" Style="{StaticResource FieldLabel}" />
+                    <Border Style="{StaticResource SegmentGroup}" HorizontalAlignment="Left">
+                      <UniformGrid Rows="1">
+                        <RadioButton Style="{StaticResource Segment}" Content="AAC" MinWidth="84" IsChecked="{Binding AudioCodec, Converter={StaticResource Eq}, ConverterParameter=aac}" />
+                        <RadioButton Style="{StaticResource Segment}" Content="MP3" MinWidth="84" IsChecked="{Binding AudioCodec, Converter={StaticResource Eq}, ConverterParameter=libmp3lame}" />
+                      </UniformGrid>
+                    </Border>
+                  </StackPanel>
+                  <StackPanel Grid.Row="4" Grid.Column="2">
+                    <TextBlock Text="Bitrate de audio" Style="{StaticResource FieldLabel}" />
+                    <StackPanel Orientation="Horizontal">
+                      <TextBox Style="{StaticResource Field}" Width="88" Text="{Binding AudioBitrate, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Bitrate de audio" />
+                      <TextBlock Text="kbps" Style="{StaticResource Unit}" />
+                    </StackPanel>
+                  </StackPanel>
+
+                  <TextBlock Grid.Row="5" Grid.ColumnSpan="3" Text="Al cambiar cualquier valor, la calidad pasa a Personalizado." Style="{StaticResource Caption}" Margin="0,18,0,0" />
+                </Grid>
+              </Border>
+            </Expander>
+          </StackPanel>
+
+          <!-- 3 · Format and framing -->
+          <StackPanel Margin="0,0,0,40">
+            <DockPanel Margin="0,0,0,16">
+              <Border Style="{StaticResource StepBadge}"><TextBlock Text="3" Style="{StaticResource StepNumber}" /></Border>
+              <StackPanel>
+                <TextBlock Text="Formato" Style="{StaticResource SectionTitle}" />
+                <TextBlock Text="La forma que tendrá el vídeo final." Style="{StaticResource SectionSubtitle}" />
+              </StackPanel>
+            </DockPanel>
+            <ItemsControl ItemsSource="{Binding Formats}" Margin="-5,0" Focusable="False">
+              <ItemsControl.ItemsPanel><ItemsPanelTemplate><UniformGrid Rows="1" /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+              <ItemsControl.ItemTemplate>
+                <DataTemplate>
+                  <Button Style="{StaticResource TileButton}" Margin="5" Padding="14,18,14,16" MinHeight="162"
+                          Command="{Binding DataContext.SelectFormatCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding Value}"
+                          AutomationProperties.Name="{Binding Title}">
+                    <Grid>
+                      <StackPanel HorizontalAlignment="Center">
+                        <Grid Width="64" Height="56" HorizontalAlignment="Center">
+                          <Border x:Name="Shape" Width="58" Height="33" CornerRadius="4" BorderThickness="2" BorderBrush="{DynamicResource Ink3Brush}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Grid>
+                        <TextBlock Text="{Binding Title}" FontSize="15" FontWeight="SemiBold" HorizontalAlignment="Center" Margin="0,12,0,0" />
+                        <TextBlock Text="{Binding Description}" FontSize="13" Foreground="{DynamicResource Ink2Brush}" HorizontalAlignment="Center" Margin="0,1,0,0" />
+                        <TextBlock Text="{Binding Hint}" Style="{StaticResource Caption}" HorizontalAlignment="Center" TextAlignment="Center" TextWrapping="Wrap" Margin="0,8,0,0" />
+                      </StackPanel>
+                      <Border x:Name="Check" Width="20" Height="20" CornerRadius="10" Background="{DynamicResource AccentBrush}" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,-4,-2,0" Visibility="Collapsed">
+                        <TextBlock Text="&#xE73E;" FontFamily="{StaticResource IconFont}" FontSize="10" Foreground="White" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                      </Border>
+                    </Grid>
+                  </Button>
+                  <DataTemplate.Triggers>
+                    <DataTrigger Binding="{Binding Symbol}" Value="portrait"><Setter TargetName="Shape" Property="Width" Value="30" /><Setter TargetName="Shape" Property="Height" Value="53" /></DataTrigger>
+                    <DataTrigger Binding="{Binding Symbol}" Value="square"><Setter TargetName="Shape" Property="Width" Value="42" /><Setter TargetName="Shape" Property="Height" Value="42" /></DataTrigger>
+                    <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                      <Setter TargetName="Shape" Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+                      <Setter TargetName="Shape" Property="Background" Value="{DynamicResource AccentMutedBrush}" />
+                      <Setter TargetName="Check" Property="Visibility" Value="Visible" />
+                    </DataTrigger>
+                  </DataTemplate.Triggers>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+
+            <TextBlock Text="Ajuste al formato" FontSize="15" FontWeight="SemiBold" Margin="0,28,0,0" />
+            <TextBlock Text="{Binding FramingHint}" Style="{StaticResource SectionSubtitle}" Margin="0,3,0,12" />
+            <UniformGrid Rows="1" Margin="-5,0">
+              <Button Style="{StaticResource TileButton}" DataContext="{Binding Framings[0]}" Margin="5" Padding="12"
+                      Command="{Binding DataContext.SelectFramingCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding Value}"
+                      AutomationProperties.Name="{Binding Title}">
+                <Grid>
+                  <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                  <Border Width="128" Height="80" CornerRadius="8" Background="{DynamicResource SurfaceAltBrush}" ClipToBounds="True">
+                    <Border Width="{Binding DataContext.FramingFrameWidth, RelativeSource={RelativeSource AncestorType=Window}}"
+                            Height="{Binding DataContext.FramingFrameHeight, RelativeSource={RelativeSource AncestorType=Window}}"
+                            Background="{DynamicResource FrameBrush}" CornerRadius="2" HorizontalAlignment="Center" VerticalAlignment="Center">
+                      <Border Width="{Binding DataContext.FitContentWidth, RelativeSource={RelativeSource AncestorType=Window}}"
+                              Height="{Binding DataContext.FitContentHeight, RelativeSource={RelativeSource AncestorType=Window}}"
+                              Background="{StaticResource PictureBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </Border>
+                  </Border>
+                  <StackPanel Grid.Column="1" Margin="16,0,26,0" VerticalAlignment="Center">
+                    <TextBlock Text="{Binding Title}" FontSize="15" FontWeight="SemiBold" />
+                    <TextBlock Text="{Binding DataContext.FitDescription, RelativeSource={RelativeSource AncestorType=Window}}" FontSize="12.5" Foreground="{DynamicResource Ink2Brush}" TextWrapping="Wrap" Margin="0,4,0,0" />
+                  </StackPanel>
+                  <Border Grid.ColumnSpan="2" Width="20" Height="20" CornerRadius="10" Background="{DynamicResource AccentBrush}" HorizontalAlignment="Right" VerticalAlignment="Top"
+                          Visibility="{Binding IsSelected, Converter={StaticResource Vis}}">
+                    <TextBlock Text="&#xE73E;" FontFamily="{StaticResource IconFont}" FontSize="10" Foreground="White" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                  </Border>
+                </Grid>
+              </Button>
+              <Button Style="{StaticResource TileButton}" DataContext="{Binding Framings[1]}" Margin="5" Padding="12"
+                      Command="{Binding DataContext.SelectFramingCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding Value}"
+                      AutomationProperties.Name="{Binding Title}">
+                <Grid>
+                  <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                  <Border Width="128" Height="80" CornerRadius="8" Background="{DynamicResource SurfaceAltBrush}" ClipToBounds="True">
+                    <Grid>
+                      <!-- Faded area = image that falls outside the frame and is lost. -->
+                      <Border Width="{Binding DataContext.CropContentWidth, RelativeSource={RelativeSource AncestorType=Window}}"
+                              Height="{Binding DataContext.CropContentHeight, RelativeSource={RelativeSource AncestorType=Window}}"
+                              Background="{StaticResource PictureBrush}" Opacity="0.3" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                      <Border Width="{Binding DataContext.FramingFrameWidth, RelativeSource={RelativeSource AncestorType=Window}}"
+                              Height="{Binding DataContext.FramingFrameHeight, RelativeSource={RelativeSource AncestorType=Window}}"
+                              ClipToBounds="True" HorizontalAlignment="Center" VerticalAlignment="Center">
+                        <Border Width="{Binding DataContext.CropContentWidth, RelativeSource={RelativeSource AncestorType=Window}}"
+                                Height="{Binding DataContext.CropContentHeight, RelativeSource={RelativeSource AncestorType=Window}}"
+                                Background="{StaticResource PictureBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                      </Border>
+                      <Border Width="{Binding DataContext.FramingFrameWidth, RelativeSource={RelativeSource AncestorType=Window}}"
+                              Height="{Binding DataContext.FramingFrameHeight, RelativeSource={RelativeSource AncestorType=Window}}"
+                              BorderBrush="{DynamicResource InkBrush}" BorderThickness="1.5" CornerRadius="2" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </Grid>
+                  </Border>
+                  <StackPanel Grid.Column="1" Margin="16,0,26,0" VerticalAlignment="Center">
+                    <TextBlock Text="{Binding Title}" FontSize="15" FontWeight="SemiBold" />
+                    <TextBlock Text="{Binding DataContext.CropDescription, RelativeSource={RelativeSource AncestorType=Window}}" FontSize="12.5" Foreground="{DynamicResource Ink2Brush}" TextWrapping="Wrap" Margin="0,4,0,0" />
+                  </StackPanel>
+                  <Border Grid.ColumnSpan="2" Width="20" Height="20" CornerRadius="10" Background="{DynamicResource AccentBrush}" HorizontalAlignment="Right" VerticalAlignment="Top"
+                          Visibility="{Binding IsSelected, Converter={StaticResource Vis}}">
+                    <TextBlock Text="&#xE73E;" FontFamily="{StaticResource IconFont}" FontSize="10" Foreground="White" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                  </Border>
+                </Grid>
+              </Button>
+            </UniformGrid>
+          </StackPanel>
+
+          <!-- 4 · Brand elements -->
+          <StackPanel>
+            <DockPanel Margin="0,0,0,16">
+              <Border Style="{StaticResource StepBadge}"><TextBlock Text="4" Style="{StaticResource StepNumber}" /></Border>
+              <StackPanel>
+                <TextBlock Text="Cortinillas y mosca" Style="{StaticResource SectionTitle}" />
+                <TextBlock Text="Elementos de marca que se añaden automáticamente." Style="{StaticResource SectionSubtitle}" />
+              </StackPanel>
+            </DockPanel>
+            <Border Style="{StaticResource SurfaceCard}" ClipToBounds="True">
+              <StackPanel>
+                <CheckBox Style="{StaticResource SwitchRow}" IsChecked="{Binding AddIntro}" IsEnabled="{Binding ShowIntroOption}"
+                          AutomationProperties.AutomationId="IntroToggle" AutomationProperties.Name="Cortinilla inicial">
+                  <Grid>
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                    <Border Width="40" Height="40" CornerRadius="10" Background="{DynamicResource SurfaceAltBrush}">
+                      <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
+                        <Border Width="7" Height="14" CornerRadius="2" Style="{StaticResource IntroGlyph}" />
+                        <Border Width="15" Height="14" CornerRadius="2" Background="{DynamicResource GlyphBrush}" Opacity="0.55" Margin="2,0,0,0" />
+                      </StackPanel>
+                    </Border>
+                    <StackPanel Grid.Column="1" Margin="16,0,0,0" VerticalAlignment="Center">
+                      <TextBlock Text="Cortinilla inicial" FontSize="15" FontWeight="SemiBold" />
+                      <TextBlock Text="{Binding IntroStatusText}" FontSize="13" Foreground="{DynamicResource Ink2Brush}" Margin="0,2,0,0" />
+                    </StackPanel>
+                  </Grid>
+                </CheckBox>
+                <Border Height="1" Background="{DynamicResource StrokeBrush}" Margin="76,0,0,0" />
+                <CheckBox Style="{StaticResource SwitchRow}" IsChecked="{Binding AddOutro}"
+                          AutomationProperties.AutomationId="OutroToggle" AutomationProperties.Name="Cortinilla final">
+                  <Grid>
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                    <Border Width="40" Height="40" CornerRadius="10" Background="{DynamicResource SurfaceAltBrush}">
+                      <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
+                        <Border Width="15" Height="14" CornerRadius="2" Background="{DynamicResource GlyphBrush}" Opacity="0.55" />
+                        <Border Width="7" Height="14" CornerRadius="2" Style="{StaticResource OutroGlyph}" Margin="2,0,0,0" />
+                      </StackPanel>
+                    </Border>
+                    <StackPanel Grid.Column="1" Margin="16,0,0,0" VerticalAlignment="Center">
+                      <TextBlock Text="Cortinilla final" FontSize="15" FontWeight="SemiBold" />
+                      <TextBlock Text="{Binding OutroStatusText}" FontSize="13" Foreground="{DynamicResource Ink2Brush}" Margin="0,2,0,0" />
+                    </StackPanel>
+                  </Grid>
+                </CheckBox>
+                <Border Height="1" Background="{DynamicResource StrokeBrush}" Margin="76,0,0,0" />
+                <CheckBox Style="{StaticResource SwitchRow}" IsChecked="{Binding WatermarkEnabled}"
+                          AutomationProperties.AutomationId="WatermarkToggle" AutomationProperties.Name="Mosca">
+                  <Grid>
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                    <Border Width="40" Height="40" CornerRadius="10" Background="{DynamicResource SurfaceAltBrush}">
+                      <Grid Width="24" Height="15">
+                        <Border CornerRadius="2" Background="{DynamicResource GlyphBrush}" Opacity="0.55" />
+                        <Border Width="7" Height="4" CornerRadius="1" Style="{StaticResource WatermarkGlyph}" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,2.5,2.5,0" />
+                      </Grid>
+                    </Border>
+                    <StackPanel Grid.Column="1" Margin="16,0,0,0" VerticalAlignment="Center">
+                      <TextBlock Text="Mosca" FontSize="15" FontWeight="SemiBold" />
+                      <TextBlock Text="Tu logo, solo sobre tu vídeo" FontSize="13" Foreground="{DynamicResource Ink2Brush}" Margin="0,2,0,0" />
+                    </StackPanel>
+                  </Grid>
+                </CheckBox>
+                <Grid Style="{StaticResource FadeIn}" Margin="76,6,20,22" Visibility="{Binding WatermarkEnabled, Converter={StaticResource Vis}}">
+                  <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="24" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                  <StackPanel>
+                    <TextBlock Text="Logo" Style="{StaticResource FieldLabel}" />
+                    <ListBox Style="{StaticResource LogoGallery}" ItemsSource="{Binding Logos}" SelectedItem="{Binding SelectedLogo}"
+                             AutomationProperties.AutomationId="LogoGallery" AutomationProperties.Name="Logo" />
+                    <TextBlock Text="{Binding SelectedLogo.Name}" Style="{StaticResource Caption}" FontSize="12.5" Margin="2,2,0,0" />
+                  </StackPanel>
+                  <StackPanel Grid.Column="2">
+                    <TextBlock Text="Posición" Style="{StaticResource FieldLabel}" />
+                    <Grid Width="176" Height="120">
+                      <Border Width="{Binding PositionFrameWidth}" Height="{Binding PositionFrameHeight}" CornerRadius="6" Background="{DynamicResource FrameBrush}" HorizontalAlignment="Center" VerticalAlignment="Center">
+                        <ItemsControl ItemsSource="{Binding Positions}" Focusable="False">
+                          <ItemsControl.ItemsPanel><ItemsPanelTemplate><UniformGrid Rows="2" Columns="2" /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+                          <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                              <Button Style="{StaticResource CornerButton}" ToolTip="{Binding Title}" AutomationProperties.Name="{Binding Title}"
+                                      Command="{Binding DataContext.SelectPositionCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding Value}">
+                                <Grid Margin="7">
+                                  <Ellipse x:Name="Dot" Width="9" Height="9" Stroke="#7D8590" StrokeThickness="1.5" HorizontalAlignment="Left" VerticalAlignment="Top" />
+                                  <Image x:Name="Logo" Source="{Binding DataContext.SelectedLogoPath, RelativeSource={RelativeSource AncestorType=Window}}" MaxWidth="34" MaxHeight="18" Stretch="Uniform"
+                                         HorizontalAlignment="Left" VerticalAlignment="Top" Visibility="Collapsed" RenderOptions.BitmapScalingMode="HighQuality" />
+                                </Grid>
+                              </Button>
+                              <DataTemplate.Triggers>
+                                <DataTrigger Binding="{Binding Value}" Value="{x:Static m:WatermarkPosition.TopRight}">
+                                  <Setter TargetName="Dot" Property="HorizontalAlignment" Value="Right" /><Setter TargetName="Logo" Property="HorizontalAlignment" Value="Right" />
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding Value}" Value="{x:Static m:WatermarkPosition.BottomLeft}">
+                                  <Setter TargetName="Dot" Property="VerticalAlignment" Value="Bottom" /><Setter TargetName="Logo" Property="VerticalAlignment" Value="Bottom" />
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding Value}" Value="{x:Static m:WatermarkPosition.BottomRight}">
+                                  <Setter TargetName="Dot" Property="HorizontalAlignment" Value="Right" /><Setter TargetName="Logo" Property="HorizontalAlignment" Value="Right" />
+                                  <Setter TargetName="Dot" Property="VerticalAlignment" Value="Bottom" /><Setter TargetName="Logo" Property="VerticalAlignment" Value="Bottom" />
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                                  <Setter TargetName="Dot" Property="Visibility" Value="Collapsed" />
+                                  <Setter TargetName="Logo" Property="Visibility" Value="Visible" />
+                                </DataTrigger>
+                              </DataTemplate.Triggers>
+                            </DataTemplate>
+                          </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                      </Border>
+                    </Grid>
+                    <TextBlock Text="{Binding WatermarkPositionLabel}" Style="{StaticResource Caption}" FontSize="12.5" HorizontalAlignment="Center" Margin="0,8,0,0" />
+                  </StackPanel>
+                </Grid>
+              </StackPanel>
+            </Border>
+          </StackPanel>
+        </StackPanel>
+      </ScrollViewer>
+
+      <!-- Locks the setup while an export is running. -->
+      <Border Background="{DynamicResource LockVeilBrush}" Visibility="{Binding IsExporting, Converter={StaticResource Vis}}" />
+
+      <!-- ============ Output panel ============ -->
+      <Border Grid.Column="1" Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource StrokeBrush}" BorderThickness="1,0,0,0">
+        <Grid>
+          <Grid.RowDefinitions><RowDefinition Height="*" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+          <Grid Margin="24,20,24,14">
+            <Grid.RowDefinitions>
+              <RowDefinition Height="Auto" />
+              <RowDefinition Height="*" MinHeight="150" />
+              <RowDefinition Height="Auto" />
+              <RowDefinition Height="Auto" />
+              <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+
+            <DockPanel>
+              <Border DockPanel.Dock="Right" Background="{DynamicResource SurfaceAltBrush}" CornerRadius="6" Padding="8,3,8,4" VerticalAlignment="Center">
+                <TextBlock FontSize="12" Foreground="{DynamicResource Ink2Brush}">
+                  <TextBlock.Text>
+                    <MultiBinding StringFormat="{}Salida {0}  ·  {1}"><Binding Path="PreviewAspectName" /><Binding Path="OutputResolution" /></MultiBinding>
+                  </TextBlock.Text>
+                </TextBlock>
+              </Border>
+              <TextBlock Text="Vista previa" FontSize="15" FontWeight="SemiBold" VerticalAlignment="Center" />
+            </DockPanel>
+
+            <Border Grid.Row="1" Margin="0,12,0,0" Background="{DynamicResource SurfaceAltBrush}" CornerRadius="12">
+              <Viewbox Margin="14" Stretch="Uniform">
+                <Border Width="{Binding PreviewFrameWidth}" Height="{Binding PreviewFrameHeight}" Background="{DynamicResource FrameBrush}" CornerRadius="3" ClipToBounds="True">
+                  <Grid>
+                    <MediaElement x:Name="PreviewMedia" LoadedBehavior="Manual" UnloadedBehavior="Stop" ScrubbingEnabled="True" Stretch="Uniform" MediaOpened="PreviewMedia_MediaOpened" MediaFailed="PreviewMedia_MediaFailed" />
+                    <Image x:Name="PreviewWatermark" Source="{Binding SelectedLogoPath}" Stretch="Uniform" Width="{Binding PreviewWatermarkWidth}" HorizontalAlignment="Right" VerticalAlignment="Top"
+                           IsHitTestVisible="False" RenderOptions.BitmapScalingMode="HighQuality" Visibility="{Binding WatermarkEnabled, Converter={StaticResource Vis}}" />
+                    <StackPanel x:Name="PreviewEmptyState" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="14,0">
+                      <TextBlock Text="&#xE714;" FontFamily="{StaticResource IconFont}" FontSize="24" Foreground="#5E6670" HorizontalAlignment="Center" />
+                      <TextBlock Text="Aquí verás cómo queda tu vídeo" FontSize="13" Foreground="#9AA1AB" TextAlignment="Center" TextWrapping="Wrap" Margin="0,10,0,0"
+                                 Visibility="{Binding PreviewErrorMessage, Converter={StaticResource Vis}, ConverterParameter=Invert}" />
+                      <TextBlock Text="{Binding PreviewErrorMessage}" FontSize="11" Foreground="#C3C8CF" TextAlignment="Center" TextWrapping="Wrap" Margin="0,10,0,0"
+                                 Visibility="{Binding PreviewErrorMessage, Converter={StaticResource Vis}}" />
+                    </StackPanel>
+                  </Grid>
+                </Border>
+              </Viewbox>
+            </Border>
+
+            <Grid Grid.Row="2" Margin="0,10,0,0" IsEnabled="{Binding HasVideo}">
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="Auto" />
+              </Grid.ColumnDefinitions>
+              <Button Style="{StaticResource IconButton}" Click="PlayPause_Click" ToolTip="Reproducir o pausar" AutomationProperties.AutomationId="PlayPauseButton" AutomationProperties.Name="Reproducir o pausar" Margin="-6,0,0,0">
+                <TextBlock x:Name="PlayGlyph" Text="&#xE768;" />
+              </Button>
+              <TextBlock Grid.Column="1" x:Name="PositionLabel" Text="0:00" Style="{StaticResource Caption}" Foreground="{DynamicResource Ink2Brush}" VerticalAlignment="Center" Margin="4,0,10,0" MinWidth="30" />
+              <Slider Grid.Column="2" x:Name="PositionSlider" Style="{StaticResource PlayerSlider}" Minimum="0" Maximum="100" VerticalAlignment="Center"
+                      ValueChanged="PositionSlider_ValueChanged" PreviewMouseLeftButtonUp="PositionSlider_PreviewMouseLeftButtonUp" AutomationProperties.Name="Posición" />
+              <TextBlock Grid.Column="3" x:Name="DurationLabel" Text="0:00" Style="{StaticResource Caption}" Foreground="{DynamicResource Ink2Brush}" VerticalAlignment="Center" Margin="10,0,14,0" />
+              <TextBlock Grid.Column="4" Text="&#xE767;" FontFamily="{StaticResource IconFont}" FontSize="14" Foreground="{DynamicResource Ink2Brush}" VerticalAlignment="Center" />
+              <Slider Grid.Column="5" x:Name="VolumeSlider" Style="{StaticResource PlayerSlider}" Minimum="0" Maximum="1" Value="0.8" Width="60" Margin="8,0,6,0" VerticalAlignment="Center"
+                      ValueChanged="VolumeSlider_ValueChanged" ToolTip="Volumen" AutomationProperties.Name="Volumen" />
+              <Button Grid.Column="6" Style="{StaticResource IconButton}" Click="Fullscreen_Click" ToolTip="Pantalla completa" AutomationProperties.Name="Pantalla completa" Margin="0,0,-6,0">
+                <TextBlock Text="&#xE740;" />
+              </Button>
+            </Grid>
+
+            <!-- Composition: where the bumpers sit relative to the video. -->
+            <Grid Grid.Row="3" Height="30" Margin="0,8,0,0">
+              <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+              <Border CornerRadius="6" Background="{DynamicResource AccentSoftBrush}" Padding="10,0" Margin="0,0,3,0" Visibility="{Binding ShowIntroInTimeline, Converter={StaticResource Vis}}">
+                <TextBlock Text="Cortinilla inicial" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource AccentTextBrush}" VerticalAlignment="Center" />
+              </Border>
+              <Border Grid.Column="1" CornerRadius="6" Background="{DynamicResource SurfaceAltBrush}" Padding="10,0">
+                <TextBlock FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource Ink2Brush}" VerticalAlignment="Center" HorizontalAlignment="Center" TextTrimming="CharacterEllipsis">
+                  <TextBlock.Style>
+                    <Style TargetType="TextBlock">
+                      <Setter Property="Text" Value="{Binding VideoDurationLabel, StringFormat='Tu vídeo  ·  {0}'}" />
+                      <Style.Triggers><DataTrigger Binding="{Binding HasVideo}" Value="False"><Setter Property="Text" Value="Tu vídeo" /></DataTrigger></Style.Triggers>
+                    </Style>
+                  </TextBlock.Style>
+                </TextBlock>
+              </Border>
+              <Border Grid.Column="2" CornerRadius="6" Background="{DynamicResource AccentSoftBrush}" Padding="10,0" Margin="3,0,0,0" Visibility="{Binding ShowOutroInTimeline, Converter={StaticResource Vis}}">
+                <TextBlock Text="Cortinilla final" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource AccentTextBrush}" VerticalAlignment="Center" />
+              </Border>
+            </Grid>
+
+            <!-- What you will get -->
+            <StackPanel Grid.Row="4" Margin="0,20,0,0">
+              <TextBlock Text="{Binding SummaryHeadline}" FontSize="18" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+              <TextBlock Text="{Binding SummaryFacts}" FontSize="13" Foreground="{DynamicResource Ink2Brush}" Margin="0,3,0,0" />
+              <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
+                <StackPanel Orientation="Horizontal" Width="22" VerticalAlignment="Center">
+                  <Border Width="5" Height="11" CornerRadius="1.5" Style="{StaticResource IntroGlyph}" />
+                  <Border Width="9" Height="11" CornerRadius="1.5" Background="{DynamicResource GlyphBrush}" Opacity="0.55" Margin="1.5,0" />
+                  <Border Width="5" Height="11" CornerRadius="1.5" Style="{StaticResource OutroGlyph}" />
+                </StackPanel>
+                <TextBlock Text="{Binding BumpersSummary}" Style="{StaticResource SummaryLine}" />
+              </StackPanel>
+              <Grid Margin="0,7,0,0">
+                <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                <Grid Width="22" Height="13" VerticalAlignment="Center">
+                  <Border CornerRadius="1.5" Background="{DynamicResource GlyphBrush}" Opacity="0.55" />
+                  <Border Width="6" Height="3.5" CornerRadius="1" Style="{StaticResource WatermarkGlyph}" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,2,2,0" />
+                </Grid>
+                <TextBlock Grid.Column="1" Text="{Binding WatermarkSummary}" Style="{StaticResource SummaryLine}" ToolTip="{Binding WatermarkSummary}" />
+              </Grid>
+              <Expander Style="{StaticResource Disclosure}" Header="Detalles técnicos" Margin="0,8,0,0">
+                <ItemsControl ItemsSource="{Binding Summary}" Margin="0,2,0,0" Focusable="False">
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                      <Grid Margin="0,3">
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="160" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                        <TextBlock Text="{Binding Label}" Style="{StaticResource Caption}" FontSize="12.5" />
+                        <TextBlock Grid.Column="1" Text="{Binding Value}" FontSize="12.5" Foreground="{DynamicResource Ink2Brush}" TextTrimming="CharacterEllipsis" />
+                      </Grid>
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+              </Expander>
+            </StackPanel>
+          </Grid>
+
+          <!-- Footer: destination, state and the primary action -->
+          <Border Grid.Row="1" BorderBrush="{DynamicResource StrokeBrush}" BorderThickness="0,1,0,0" Padding="24,16,24,20">
+            <StackPanel>
+              <StackPanel Margin="0,0,0,16" IsEnabled="{Binding IsIdle}" Visibility="{Binding ShowDestination, Converter={StaticResource Vis}}">
+                <Grid>
+                  <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                  <TextBox Style="{StaticResource Field}" Text="{Binding OutputFileName, UpdateSourceTrigger=PropertyChanged}" ToolTip="Nombre del archivo que se va a crear"
+                           AutomationProperties.AutomationId="OutputFileName" AutomationProperties.Name="Nombre del archivo" />
+                  <Button Grid.Column="1" Style="{StaticResource SecondaryButton}" Width="38" Padding="0" Margin="8,0,0,0" Click="ChooseFolder_Click"
+                          ToolTip="Elegir carpeta de destino" AutomationProperties.Name="Elegir carpeta de destino">
+                    <TextBlock Text="&#xE8B7;" FontFamily="{StaticResource IconFont}" FontSize="15" />
+                  </Button>
+                </Grid>
+                <TextBlock Margin="2,7,0,0" TextTrimming="CharacterEllipsis" ToolTip="{Binding OutputFolder}">
+                  <TextBlock.Style>
+                    <Style TargetType="TextBlock" BasedOn="{StaticResource Caption}">
+                      <Setter Property="Text" Value="{Binding OutputFolder, StringFormat='Se guardará en {0}'}" />
+                      <Style.Triggers><DataTrigger Binding="{Binding OutputFolder}" Value=""><Setter Property="Text" Value="Se guardará junto al vídeo original" /></DataTrigger></Style.Triggers>
+                    </Style>
+                  </TextBlock.Style>
+                </TextBlock>
+              </StackPanel>
+
+              <Border Style="{StaticResource InfoBanner}" Margin="0,0,0,14" Visibility="{Binding IsCancelled, Converter={StaticResource Vis}}">
+                <Grid>
+                  <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                  <TextBlock Text="&#xE711;" FontFamily="{StaticResource IconFont}" FontSize="13" Foreground="{DynamicResource Ink2Brush}" Margin="0,2,12,0" />
+                  <TextBlock Grid.Column="1" Text="Exportación cancelada. Puedes volver a intentarlo cuando quieras." FontSize="13" TextWrapping="Wrap" />
+                </Grid>
+              </Border>
+
+              <Border Style="{StaticResource DangerBanner}" Margin="0,0,0,14" Visibility="{Binding HasExportError, Converter={StaticResource Vis}}">
+                <Grid>
+                  <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                  <TextBlock Text="&#xE783;" FontFamily="{StaticResource IconFont}" FontSize="16" Foreground="{DynamicResource DangerBrush}" Margin="0,1,12,0" />
+                  <StackPanel Grid.Column="1">
+                    <TextBlock Text="{Binding ErrorMessage}" TextWrapping="Wrap" FontSize="13" />
+                    <Expander Style="{StaticResource Disclosure}" Header="Ver detalles" Margin="0,2,0,0" Visibility="{Binding HasErrorDetails, Converter={StaticResource Vis}}">
+                      <StackPanel>
+                        <TextBox Text="{Binding ErrorDetails, Mode=OneWay}" IsReadOnly="True" TextWrapping="Wrap" FontFamily="Consolas" FontSize="11.5" Foreground="{DynamicResource Ink2Brush}" Background="Transparent" BorderThickness="0" MaxHeight="120" VerticalScrollBarVisibility="Auto" />
+                        <TextBlock Text="{Binding LastLogPath, StringFormat='Registro: {0}'}" Style="{StaticResource Caption}" TextWrapping="Wrap" Margin="0,6,0,0" Visibility="{Binding LastLogPath, Converter={StaticResource Vis}}" />
+                      </StackPanel>
+                    </Expander>
+                  </StackPanel>
+                </Grid>
+              </Border>
+
+              <StackPanel Style="{StaticResource FadeIn}" Visibility="{Binding IsExporting, Converter={StaticResource Vis}}">
+                <DockPanel>
+                  <TextBlock DockPanel.Dock="Right" Text="{Binding Progress, StringFormat={}{0:0} %}" FontSize="14" FontWeight="SemiBold" Foreground="{DynamicResource AccentTextBrush}" />
+                  <TextBlock Text="{Binding StatusMessage}" FontSize="14" FontWeight="SemiBold" />
+                </DockPanel>
+                <ProgressBar Value="{Binding Progress, Mode=OneWay}" Maximum="100" Margin="0,10,0,0" />
+                <DockPanel Margin="0,14,0,0">
+                  <Button DockPanel.Dock="Right" Style="{StaticResource SecondaryButton}" Content="Cancelar" Command="{Binding CancelExportCommand}" AutomationProperties.AutomationId="CancelExportButton" />
+                  <TextBlock Text="Puedes seguir usando el equipo mientras tanto." Style="{StaticResource Caption}" TextWrapping="Wrap" VerticalAlignment="Center" Margin="0,0,12,0" />
+                </DockPanel>
+              </StackPanel>
+
+              <Border Style="{StaticResource DangerBanner}" Background="{DynamicResource SuccessSoftBrush}" CornerRadius="12" Padding="16" Visibility="{Binding IsComplete, Converter={StaticResource Vis}}">
+                <StackPanel>
+                  <Grid>
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                    <Border Width="36" Height="36" CornerRadius="18" Background="{DynamicResource SuccessBrush}" VerticalAlignment="Top">
+                      <TextBlock Text="&#xE73E;" FontFamily="{StaticResource IconFont}" FontSize="15" Foreground="White" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </Border>
+                    <StackPanel Grid.Column="1" Margin="14,0,0,0" VerticalAlignment="Center">
+                      <TextBlock Text="Tu vídeo está listo" FontSize="16" FontWeight="SemiBold" />
+                      <TextBlock Text="{Binding OutputFileName}" FontSize="13" Foreground="{DynamicResource Ink2Brush}" TextTrimming="CharacterEllipsis" Margin="0,2,0,0" ToolTip="{Binding OutputPath}" />
+                      <TextBlock Text="{Binding CompletionDetails}" Style="{StaticResource Caption}" Margin="0,2,0,0" />
+                    </StackPanel>
+                  </Grid>
+                  <UniformGrid Rows="1" Margin="0,14,0,0">
+                    <Button Style="{StaticResource PrimaryButton}" Content="Abrir vídeo" Command="{Binding OpenOutputCommand}" Margin="0,0,4,0" AutomationProperties.AutomationId="OpenVideoButton" />
+                    <Button Style="{StaticResource SecondaryButton}" Content="Mostrar en carpeta" Command="{Binding OpenFolderCommand}" Margin="4,0,0,0" AutomationProperties.AutomationId="OpenFolderButton" />
+                  </UniformGrid>
+                  <Button Style="{StaticResource LinkButton}" Content="Preparar otro vídeo" Command="{Binding NewPreparationCommand}" HorizontalAlignment="Center" Margin="0,12,0,0" Padding="4,2"
+                          AutomationProperties.AutomationId="NewPreparationButton" />
+                </StackPanel>
+              </Border>
+
+              <StackPanel Visibility="{Binding CanStartExport, Converter={StaticResource Vis}}">
+                <Button Style="{StaticResource PrimaryButton}" Height="52" FontSize="16" Command="{Binding ExportCommand}"
+                        AutomationProperties.AutomationId="ExportButton" AutomationProperties.Name="Exportar vídeo">
+                  <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="Exportar vídeo" VerticalAlignment="Center" />
+                    <TextBlock Text="&#xE72A;" FontFamily="{StaticResource IconFont}" FontSize="14" Margin="12,2,0,0" VerticalAlignment="Center" />
+                  </StackPanel>
+                </Button>
+                <TextBlock Text="Añade un vídeo para poder exportar" Style="{StaticResource Caption}" HorizontalAlignment="Center" Margin="0,8,0,0"
+                           Visibility="{Binding HasVideo, Converter={StaticResource Vis}, ConverterParameter=Invert}" />
+              </StackPanel>
+            </StackPanel>
+          </Border>
+        </Grid>
+      </Border>
+    </Grid>
+
+    <!-- Drag & drop feedback -->
+    <Grid x:Name="DropOverlay" Grid.RowSpan="2" Visibility="Collapsed" AllowDrop="True" DragLeave="DropOverlay_DragLeave" Background="{DynamicResource DropVeilBrush}">
+      <Rectangle Margin="20" RadiusX="18" RadiusY="18" Stroke="{DynamicResource AccentBrush}" StrokeThickness="2" StrokeDashArray="6 4" IsHitTestVisible="False" />
+      <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" IsHitTestVisible="False">
+        <Border Width="72" Height="72" CornerRadius="36" Background="{DynamicResource AccentBrush}" HorizontalAlignment="Center">
+          <TextBlock Text="&#xE898;" FontFamily="{StaticResource IconFont}" FontSize="28" Foreground="White" HorizontalAlignment="Center" VerticalAlignment="Center" />
+        </Border>
+        <TextBlock Text="Suelta el vídeo para empezar" FontSize="22" FontWeight="SemiBold" HorizontalAlignment="Center" Margin="0,20,0,0" />
+        <TextBlock Text="Lo analizaremos y prepararemos la vista previa." Foreground="{DynamicResource Ink2Brush}" HorizontalAlignment="Center" Margin="0,6,0,0" />
+      </StackPanel>
+    </Grid>
+
+    <!-- Help modal -->
+    <Grid x:Name="HelpOverlay" Grid.RowSpan="2" Visibility="Collapsed" Background="{DynamicResource ModalVeilBrush}"
+          KeyboardNavigation.TabNavigation="Cycle" KeyboardNavigation.DirectionalNavigation="Contained"
+          MouseLeftButtonDown="HelpOverlay_MouseLeftButtonDown" KeyDown="HelpOverlay_KeyDown">
+      <Grid.Style>
+        <Style TargetType="Grid">
+          <Style.Triggers>
+            <Trigger Property="IsVisible" Value="True">
+              <Trigger.EnterActions>
+                <BeginStoryboard><Storyboard><DoubleAnimation Storyboard.TargetProperty="Opacity" From="0" To="1" Duration="0:0:0.18" /></Storyboard></BeginStoryboard>
+              </Trigger.EnterActions>
+            </Trigger>
+          </Style.Triggers>
+        </Style>
+      </Grid.Style>
+      <Grid Width="620" Margin="32" VerticalAlignment="Center" MouseLeftButtonDown="HelpCard_MouseLeftButtonDown">
+        <!-- Shadow lives on a sibling so the card text keeps ClearType. -->
+        <Border CornerRadius="16" Background="{DynamicResource SurfaceBrush}">
+          <Border.Effect><DropShadowEffect BlurRadius="48" ShadowDepth="12" Direction="270" Opacity="0.28" /></Border.Effect>
+        </Border>
+        <Border Style="{StaticResource SurfaceCard}" CornerRadius="16"
+                AutomationProperties.Name="Ayuda de VideoPack">
+          <Grid>
+            <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+
+            <Grid Margin="28,24,18,0">
+              <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+              <Border Width="44" Height="44" CornerRadius="12" Background="{DynamicResource AccentSoftBrush}">
+                <TextBlock Text="&#xE897;" FontFamily="{StaticResource IconFont}" FontSize="19" Foreground="{DynamicResource AccentBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+              </Border>
+              <StackPanel Grid.Column="1" Margin="16,0,12,0" VerticalAlignment="Center">
+                <TextBlock Text="Cómo usar VideoPack" FontSize="20" FontWeight="SemiBold" />
+                <TextBlock Text="Tu vídeo listo para publicar en cinco pasos." Style="{StaticResource SectionSubtitle}" />
+              </StackPanel>
+              <Button Grid.Column="2" Style="{StaticResource IconButton}" Click="CloseHelp_Click" VerticalAlignment="Top" Margin="0,-2,0,0"
+                      ToolTip="Cerrar" AutomationProperties.Name="Cerrar ayuda">
+                <TextBlock Text="&#xE711;" FontSize="12" />
+              </Button>
+            </Grid>
+
+            <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Focusable="False" Margin="0,22,0,0">
+              <StackPanel Margin="28,0,28,22">
+                <ItemsControl Focusable="False">
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate DataType="{x:Type vm:HelpStep}">
+                      <Grid>
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                        <Border x:Name="Connector" Width="2" CornerRadius="1" Background="{DynamicResource AccentMutedBrush}" HorizontalAlignment="Center" Margin="0,32,0,4" />
+                        <Border Width="28" Height="28" CornerRadius="14" Background="{DynamicResource AccentBrush}" VerticalAlignment="Top">
+                          <TextBlock Text="{Binding Number}" Foreground="White" FontSize="13" FontWeight="SemiBold" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="0,0,0,1" />
+                        </Border>
+                        <StackPanel Grid.Column="1" Margin="16,3,0,20">
+                          <TextBlock Text="{Binding Title}" FontSize="15" FontWeight="SemiBold" />
+                          <TextBlock Text="{Binding Text}" FontSize="13" Foreground="{DynamicResource Ink2Brush}" TextWrapping="Wrap" LineHeight="19" Margin="0,3,0,0" />
+                        </StackPanel>
+                      </Grid>
+                      <DataTemplate.Triggers>
+                        <DataTrigger Binding="{Binding IsLast}" Value="True"><Setter TargetName="Connector" Property="Visibility" Value="Collapsed" /></DataTrigger>
+                      </DataTemplate.Triggers>
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                  <vm:HelpStep Number="1" Title="Añade tu vídeo" Text="Arrástralo a la ventana o haz clic en la zona de carga. Admite MP4, MOV, MKV, AVI, M4V y WEBM." />
+                  <vm:HelpStep Number="2" Title="Elige para qué es" Text="Master, YouTube o Redes ajustan la calidad por ti. Con Personalizado decides la resolución, los fotogramas, los códecs y el bitrate." />
+                  <vm:HelpStep Number="3" Title="Ajusta el formato" Text="Horizontal, vertical o cuadrado. Después decide si el vídeo se encuadra completo o se recorta para llenar todo el encuadre." />
+                  <vm:HelpStep Number="4" Title="Añade la marca" Text="Activa las cortinillas inicial y final y la mosca. La mosca se incrusta solo sobre tu vídeo. Escoge el logo y la esquina en la que aparecerá." />
+                  <vm:HelpStep Number="5" Title="Exporta" Text="Revisa la vista previa, comprueba el nombre del archivo y la carpeta de destino, y pulsa Exportar vídeo." IsLast="True" />
+                </ItemsControl>
+
+                <Border Style="{StaticResource InfoBanner}" Margin="0,4,0,0">
+                  <Grid>
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                    <TextBlock Text="&#xE82F;" FontFamily="{StaticResource IconFont}" FontSize="15" Foreground="{DynamicResource AccentBrush}" Margin="0,1,12,0" />
+                    <TextBlock Grid.Column="1" FontSize="13" Foreground="{DynamicResource Ink2Brush}" TextWrapping="Wrap" LineHeight="19">
+                      La vista previa de la derecha muestra en todo momento cómo quedará el resultado. Los registros de cada exportación se guardan en <Run Text="data\logs" FontFamily="Consolas" FontSize="12.5" />.
+                    </TextBlock>
+                  </Grid>
+                </Border>
+              </StackPanel>
+            </ScrollViewer>
+
+            <!-- Credits -->
+            <Border Grid.Row="2" Background="{DynamicResource SurfaceAltBrush}" BorderBrush="{DynamicResource StrokeBrush}" BorderThickness="0,1,0,0"
+                    CornerRadius="0,0,15,15" Padding="28,16,20,16">
+              <DockPanel>
+                <Button x:Name="HelpDoneButton" DockPanel.Dock="Right" Style="{StaticResource PrimaryButton}" Content="Entendido" MinWidth="120"
+                        Click="CloseHelp_Click" AutomationProperties.AutomationId="HelpDoneButton" />
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                  <Border Width="38" Height="38" CornerRadius="19" Background="{DynamicResource AccentMutedBrush}">
+                    <TextBlock Text="AV" FontSize="13" FontWeight="SemiBold" Foreground="{DynamicResource AccentTextBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                  </Border>
+                  <StackPanel Margin="12,0,0,0" VerticalAlignment="Center">
+                    <TextBlock Text="Diseño y desarrollo" Style="{StaticResource Caption}" />
+                    <TextBlock Text="Aritz Villodas" FontSize="14" FontWeight="SemiBold" Margin="0,1,0,0" />
+                    <TextBlock Text="{x:Static local:AppVersion.About}" Style="{StaticResource Caption}" Margin="0,2,0,0" />
+                  </StackPanel>
+                </StackPanel>
+              </DockPanel>
+            </Border>
+          </Grid>
+        </Border>
+      </Grid>
+    </Grid>
+  </Grid>
+</Window>

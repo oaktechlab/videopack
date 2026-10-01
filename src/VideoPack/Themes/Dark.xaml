@@ -1,0 +1,49 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:sys="clr-namespace:System;assembly=mscorlib">
+  <!-- Same keys as Light.xaml: graphite surfaces, brighter blue so actions keep their contrast. -->
+  <SolidColorBrush x:Key="AccentBrush" Color="#2F7FE6" />
+  <SolidColorBrush x:Key="AccentHoverBrush" Color="#4590F0" />
+  <SolidColorBrush x:Key="AccentPressedBrush" Color="#226CCB" />
+  <SolidColorBrush x:Key="AccentSoftBrush" Color="#132338" />
+  <SolidColorBrush x:Key="AccentMutedBrush" Color="#1B3556" />
+  <SolidColorBrush x:Key="AccentTextBrush" Color="#6EAEF7" />
+  <SolidColorBrush x:Key="CanvasBrush" Color="#0F1114" />
+  <SolidColorBrush x:Key="SurfaceBrush" Color="#17191D" />
+  <SolidColorBrush x:Key="SurfaceAltBrush" Color="#202328" />
+  <SolidColorBrush x:Key="SurfaceHoverBrush" Color="#1D2024" />
+  <SolidColorBrush x:Key="SurfacePressedBrush" Color="#2A2E34" />
+  <SolidColorBrush x:Key="StrokeBrush" Color="#272A30" />
+  <SolidColorBrush x:Key="StrokeStrongBrush" Color="#383C44" />
+  <SolidColorBrush x:Key="StrokeHoverBrush" Color="#4B515B" />
+  <SolidColorBrush x:Key="DashBrush" Color="#41464F" />
+  <SolidColorBrush x:Key="InkBrush" Color="#ECEEF1" />
+  <SolidColorBrush x:Key="Ink2Brush" Color="#A4ABB5" />
+  <SolidColorBrush x:Key="Ink3Brush" Color="#7A818C" />
+  <SolidColorBrush x:Key="DisabledInkBrush" Color="#5F6670" />
+  <SolidColorBrush x:Key="GlyphBrush" Color="#4A505A" />
+  <SolidColorBrush x:Key="FrameBrush" Color="#08090B" />
+  <SolidColorBrush x:Key="SuccessBrush" Color="#2E9D5B" />
+  <SolidColorBrush x:Key="SuccessSoftBrush" Color="#13261B" />
+  <SolidColorBrush x:Key="DangerBrush" Color="#F06A5E" />
+  <SolidColorBrush x:Key="DangerSoftBrush" Color="#2C1816" />
+
+  <SolidColorBrush x:Key="SwitchTrackBrush" Color="#17191D" />
+  <SolidColorBrush x:Key="SwitchStrokeBrush" Color="#6B727D" />
+  <SolidColorBrush x:Key="SwitchKnobBrush" Color="#A4ABB5" />
+  <SolidColorBrush x:Key="SegmentSelectedBrush" Color="#363A42" />
+  <SolidColorBrush x:Key="TrackBrush" Color="#30343B" />
+  <SolidColorBrush x:Key="ScrollThumbBrush" Color="#3A3F47" />
+  <SolidColorBrush x:Key="ScrollThumbHoverBrush" Color="#525862" />
+  <SolidColorBrush x:Key="ScrollThumbActiveBrush" Color="#666D78" />
+  <SolidColorBrush x:Key="DropZoneHoverBrush" Color="#141B25" />
+  <SolidColorBrush x:Key="TooltipBrush" Color="#3A3F47" />
+  <SolidColorBrush x:Key="LockVeilBrush" Color="#B30F1114" />
+  <SolidColorBrush x:Key="DropVeilBrush" Color="#F00E141C" />
+  <SolidColorBrush x:Key="ModalVeilBrush" Color="#A6000000" />
+
+  <Visibility x:Key="LightOnlyVisibility">Collapsed</Visibility>
+  <Visibility x:Key="DarkOnlyVisibility">Visible</Visibility>
+  <sys:String x:Key="ThemeToggleGlyph">&#xE706;</sys:String>
+  <sys:String x:Key="ThemeToggleLabel">Modo claro</sys:String>
+</ResourceDictionary>
