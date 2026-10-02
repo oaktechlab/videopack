@@ -41,7 +41,6 @@ New-Item -ItemType Directory -Force -Path $ffmpegDirectory, $licenseDirectory | 
 Copy-RequiredAsset 'resources\bumper\bumper_tecnalia_in_landscape.mp4' 'assets\intros\bumper_tecnalia_in_landscape.mp4'
 Copy-RequiredAsset 'resources\bumper\bumper_tecnalia_out_landscape.mp4' 'assets\outros\bumper_tecnalia_out_landscape.mp4'
 Copy-RequiredAsset 'resources\bumper\bumper_tecnalia_out_portrait.mp4' 'assets\outros\bumper_tecnalia_out_portrait.mp4'
-Copy-RequiredAsset 'resources\mockup\mockup_videopack.png' 'assets\mockup\mockup_videopack.png'
 
 $watermarkDirectory = Join-Path $assetDirectory 'watermarks'
 New-Item -ItemType Directory -Force -Path $watermarkDirectory | Out-Null

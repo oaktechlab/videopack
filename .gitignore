@@ -13,3 +13,6 @@ data/assets/
 # Runtime
 data/temp/
 data/logs/
+
+# Editor
+.vscode/
