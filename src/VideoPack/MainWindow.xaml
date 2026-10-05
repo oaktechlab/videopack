@@ -314,6 +314,40 @@
               </Grid>
             </Border>
 
+            <Border Style="{StaticResource SurfaceCard}" Padding="18,16" Margin="0,12,0,0" Visibility="{Binding HasVideo, Converter={StaticResource Vis}}">
+              <StackPanel>
+                <Grid>
+                  <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                  <StackPanel VerticalAlignment="Center">
+                    <TextBlock Text="Recortar vídeo" FontSize="15" FontWeight="SemiBold" />
+                    <TextBlock Text="Quita el principio y el final que sobran." Style="{StaticResource Caption}" Margin="0,2,0,0" />
+                  </StackPanel>
+                  <Button Grid.Column="1" Style="{StaticResource GhostButton}" Content="Restablecer" VerticalAlignment="Center" Margin="12,0,0,0"
+                          Command="{Binding ResetTrimCommand}" Visibility="{Binding IsTrimmed, Converter={StaticResource Vis}}"
+                          AutomationProperties.AutomationId="ResetTrimButton" AutomationProperties.Name="Restablecer recorte" />
+                </Grid>
+                <Canvas x:Name="TrimCanvas" Height="44" Margin="0,12,0,2" Background="Transparent" Cursor="Arrow"
+                        SizeChanged="TrimCanvas_SizeChanged" MouseLeftButtonDown="TrimCanvas_MouseLeftButtonDown"
+                        MouseMove="TrimCanvas_MouseMove" MouseLeftButtonUp="TrimCanvas_MouseLeftButtonUp"
+                        LostMouseCapture="TrimCanvas_LostMouseCapture" AutomationProperties.Name="Recorte del vídeo">
+                  <Border x:Name="TrimRail" Height="8" Canvas.Top="18" CornerRadius="4" Background="{DynamicResource SurfacePressedBrush}" IsHitTestVisible="False" />
+                  <Border x:Name="TrimKept" Height="8" Canvas.Top="18" CornerRadius="4" Background="{DynamicResource AccentBrush}" IsHitTestVisible="False" />
+                  <Border x:Name="TrimStartHandle" Width="16" Height="26" Canvas.Top="9" CornerRadius="4" Background="{DynamicResource SurfaceBrush}"
+                          BorderBrush="{DynamicResource AccentBrush}" BorderThickness="2" IsHitTestVisible="False" />
+                  <Border x:Name="TrimEndHandle" Width="16" Height="26" Canvas.Top="9" CornerRadius="4" Background="{DynamicResource SurfaceBrush}"
+                          BorderBrush="{DynamicResource AccentBrush}" BorderThickness="2" IsHitTestVisible="False" />
+                </Canvas>
+                <StackPanel Orientation="Horizontal" Margin="2,0,0,0">
+                  <TextBlock Text="Inicio" Style="{StaticResource Caption}" VerticalAlignment="Center" />
+                  <TextBlock Text="{Binding TrimStartLabel}" FontWeight="SemiBold" Margin="6,0,18,0" VerticalAlignment="Center" />
+                  <TextBlock Text="Fin" Style="{StaticResource Caption}" VerticalAlignment="Center" />
+                  <TextBlock Text="{Binding TrimEndLabel}" FontWeight="SemiBold" Margin="6,0,18,0" VerticalAlignment="Center" />
+                  <TextBlock Text="Duración" Style="{StaticResource Caption}" VerticalAlignment="Center" />
+                  <TextBlock Text="{Binding KeptDurationLabel}" FontWeight="SemiBold" Margin="6,0,0,0" VerticalAlignment="Center" />
+                </StackPanel>
+              </StackPanel>
+            </Border>
+
             <Border Style="{StaticResource DangerBanner}" Margin="0,12,0,0" Visibility="{Binding HasLoadError, Converter={StaticResource Vis}}">
               <Grid>
                 <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
@@ -680,12 +714,13 @@
             </DockPanel>
 
             <Border Grid.Row="1" Margin="0,12,0,0" Background="{DynamicResource SurfaceAltBrush}" CornerRadius="12">
-              <Viewbox Margin="14" Stretch="Uniform">
-                <Border Width="{Binding PreviewFrameWidth}" Height="{Binding PreviewFrameHeight}" Background="{DynamicResource FrameBrush}" CornerRadius="3" ClipToBounds="True">
+              <!-- The video surface needs a real layout slot. A Viewbox scales it after the fact and the first frame never paints. -->
+              <Grid x:Name="PreviewHost" Margin="14" SizeChanged="PreviewHost_SizeChanged">
+                <Border x:Name="PreviewFrame" HorizontalAlignment="Center" VerticalAlignment="Center" Background="{DynamicResource FrameBrush}" CornerRadius="3" ClipToBounds="True">
                   <Grid>
-                    <MediaElement x:Name="PreviewMedia" LoadedBehavior="Manual" UnloadedBehavior="Stop" ScrubbingEnabled="True" Stretch="Uniform" MediaOpened="PreviewMedia_MediaOpened" MediaFailed="PreviewMedia_MediaFailed" />
-                    <Image x:Name="PreviewWatermark" Source="{Binding SelectedLogoPath}" Stretch="Uniform" Width="{Binding PreviewWatermarkWidth}" HorizontalAlignment="Right" VerticalAlignment="Top"
-                           IsHitTestVisible="False" RenderOptions.BitmapScalingMode="HighQuality" Visibility="{Binding WatermarkEnabled, Converter={StaticResource Vis}}" />
+                    <MediaElement x:Name="PreviewMedia" LoadedBehavior="Manual" UnloadedBehavior="Manual" ScrubbingEnabled="True" Stretch="Uniform" />
+                    <Image x:Name="PreviewWatermark" Source="{Binding SelectedLogoPath}" Stretch="Uniform" HorizontalAlignment="Right" VerticalAlignment="Top"
+                           IsHitTestVisible="False" RenderOptions.BitmapScalingMode="HighQuality" Visibility="{Binding ShowPreviewWatermark, Converter={StaticResource Vis}}" />
                     <StackPanel x:Name="PreviewEmptyState" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="14,0">
                       <TextBlock Text="&#xE714;" FontFamily="{StaticResource IconFont}" FontSize="24" Foreground="#5E6670" HorizontalAlignment="Center" />
                       <TextBlock Text="Aquí verás cómo queda tu vídeo" FontSize="13" Foreground="#9AA1AB" TextAlignment="Center" TextWrapping="Wrap" Margin="0,10,0,0"
@@ -695,7 +730,7 @@
                     </StackPanel>
                   </Grid>
                 </Border>
-              </Viewbox>
+              </Grid>
             </Border>
 
             <Grid Grid.Row="2" Margin="0,10,0,0" IsEnabled="{Binding HasVideo}">
@@ -706,10 +741,10 @@
               <Button Style="{StaticResource IconButton}" Click="PlayPause_Click" ToolTip="Reproducir o pausar" AutomationProperties.AutomationId="PlayPauseButton" AutomationProperties.Name="Reproducir o pausar" Margin="-6,0,0,0">
                 <TextBlock x:Name="PlayGlyph" Text="&#xE768;" />
               </Button>
-              <TextBlock Grid.Column="1" x:Name="PositionLabel" Text="0:00" Style="{StaticResource Caption}" Foreground="{DynamicResource Ink2Brush}" VerticalAlignment="Center" Margin="4,0,10,0" MinWidth="30" />
+              <TextBlock Grid.Column="1" x:Name="PositionLabel" Text="00:00" Style="{StaticResource Caption}" Foreground="{DynamicResource Ink2Brush}" VerticalAlignment="Center" Margin="4,0,10,0" MinWidth="46" />
               <Slider Grid.Column="2" x:Name="PositionSlider" Style="{StaticResource PlayerSlider}" Minimum="0" Maximum="100" VerticalAlignment="Center"
                       ValueChanged="PositionSlider_ValueChanged" PreviewMouseLeftButtonUp="PositionSlider_PreviewMouseLeftButtonUp" AutomationProperties.Name="Posición" />
-              <TextBlock Grid.Column="3" x:Name="DurationLabel" Text="0:00" Style="{StaticResource Caption}" Foreground="{DynamicResource Ink2Brush}" VerticalAlignment="Center" Margin="10,0,14,0" />
+              <TextBlock Grid.Column="3" x:Name="DurationLabel" Text="00:00" Style="{StaticResource Caption}" Foreground="{DynamicResource Ink2Brush}" VerticalAlignment="Center" Margin="10,0,14,0" MinWidth="46" />
               <TextBlock Grid.Column="4" Text="&#xE767;" FontFamily="{StaticResource IconFont}" FontSize="14" Foreground="{DynamicResource Ink2Brush}" VerticalAlignment="Center" />
               <Slider Grid.Column="5" x:Name="VolumeSlider" Style="{StaticResource PlayerSlider}" Minimum="0" Maximum="1" Value="0.8" Width="60" Margin="8,0,6,0" VerticalAlignment="Center"
                       ValueChanged="VolumeSlider_ValueChanged" ToolTip="Volumen" AutomationProperties.Name="Volumen" />
@@ -718,25 +753,27 @@
               </Button>
             </Grid>
 
-            <!-- Composition: where the bumpers sit relative to the video. -->
-            <Grid Grid.Row="3" Height="30" Margin="0,8,0,0">
-              <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
-              <Border CornerRadius="6" Background="{DynamicResource AccentSoftBrush}" Padding="10,0" Margin="0,0,3,0" Visibility="{Binding ShowIntroInTimeline, Converter={StaticResource Vis}}">
-                <TextBlock Text="Cortinilla inicial" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource AccentTextBrush}" VerticalAlignment="Center" />
-              </Border>
-              <Border Grid.Column="1" CornerRadius="6" Background="{DynamicResource SurfaceAltBrush}" Padding="10,0">
-                <TextBlock FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource Ink2Brush}" VerticalAlignment="Center" HorizontalAlignment="Center" TextTrimming="CharacterEllipsis">
-                  <TextBlock.Style>
-                    <Style TargetType="TextBlock">
-                      <Setter Property="Text" Value="{Binding VideoDurationLabel, StringFormat='Tu vídeo  ·  {0}'}" />
-                      <Style.Triggers><DataTrigger Binding="{Binding HasVideo}" Value="False"><Setter Property="Text" Value="Tu vídeo" /></DataTrigger></Style.Triggers>
-                    </Style>
-                  </TextBlock.Style>
-                </TextBlock>
-              </Border>
-              <Border Grid.Column="2" CornerRadius="6" Background="{DynamicResource AccentSoftBrush}" Padding="10,0" Margin="3,0,0,0" Visibility="{Binding ShowOutroInTimeline, Converter={StaticResource Vis}}">
-                <TextBlock Text="Cortinilla final" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource AccentTextBrush}" VerticalAlignment="Center" />
-              </Border>
+            <!-- Composition of the video that will be exported. Widths follow real durations once a video is loaded. -->
+            <Grid Grid.Row="3" Height="34" Margin="0,8,0,0">
+              <Grid>
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="{Binding IntroTimelineLength}" />
+                  <ColumnDefinition Width="{Binding MainTimelineLength}" />
+                  <ColumnDefinition Width="{Binding OutroTimelineLength}" />
+                </Grid.ColumnDefinitions>
+                <Border CornerRadius="6" Background="{DynamicResource AccentSoftBrush}" Margin="0,2,3,2" Visibility="{Binding ShowIntroInTimeline, Converter={StaticResource Vis}}">
+                  <TextBlock Text="Cortinilla inicial" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource AccentTextBrush}" VerticalAlignment="Center" HorizontalAlignment="Stretch" TextAlignment="Center" TextTrimming="CharacterEllipsis" Margin="8,0" />
+                </Border>
+                <Border Grid.Column="1" CornerRadius="6" Background="{DynamicResource SurfaceAltBrush}" Margin="0,2">
+                  <TextBlock Text="{Binding CompositionMainLabel}" ToolTip="{Binding CompositionMainLabel}" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource Ink2Brush}" VerticalAlignment="Center" HorizontalAlignment="Stretch" TextAlignment="Center" TextTrimming="CharacterEllipsis" Margin="6,0" />
+                </Border>
+                <Border Grid.Column="2" CornerRadius="6" Background="{DynamicResource AccentSoftBrush}" Margin="3,2,0,2" Visibility="{Binding ShowOutroInTimeline, Converter={StaticResource Vis}}">
+                  <TextBlock Text="Cortinilla final" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource AccentTextBrush}" VerticalAlignment="Center" HorizontalAlignment="Stretch" TextAlignment="Center" TextTrimming="CharacterEllipsis" Margin="8,0" />
+                </Border>
+              </Grid>
+              <Canvas x:Name="CompositionCanvas" IsHitTestVisible="False" SizeChanged="CompositionCanvas_SizeChanged">
+                <Border x:Name="CompositionPlayhead" Width="2" Height="34" CornerRadius="1" Background="{DynamicResource AccentBrush}" Visibility="Collapsed" />
+              </Canvas>
             </Grid>
 
             <!-- What you will get -->
@@ -759,6 +796,17 @@
                 </Grid>
                 <TextBlock Grid.Column="1" Text="{Binding WatermarkSummary}" Style="{StaticResource SummaryLine}" ToolTip="{Binding WatermarkSummary}" />
               </Grid>
+              <StackPanel Orientation="Horizontal" Margin="0,7,0,0" Visibility="{Binding HasVideo, Converter={StaticResource Vis}}">
+                <Grid Width="22" Height="13" VerticalAlignment="Center">
+                  <Border CornerRadius="1.5" Background="{DynamicResource GlyphBrush}" Opacity="0.28" />
+                  <Border Width="10" CornerRadius="1" Background="{DynamicResource AccentBrush}" HorizontalAlignment="Center" />
+                </Grid>
+                <TextBlock Text="{Binding TrimSummaryLine}" Style="{StaticResource SummaryLine}" />
+              </StackPanel>
+              <StackPanel Orientation="Horizontal" Margin="0,7,0,0" Visibility="{Binding HasVideo, Converter={StaticResource Vis}}">
+                <TextBlock Text="&#xE823;" FontFamily="{StaticResource IconFont}" FontSize="13" Foreground="{DynamicResource Ink2Brush}" Width="22" VerticalAlignment="Center" />
+                <TextBlock Text="{Binding FinalDurationSummary}" Style="{StaticResource SummaryLine}" />
+              </StackPanel>
               <Expander Style="{StaticResource Disclosure}" Header="Detalles técnicos" Margin="0,8,0,0">
                 <ItemsControl ItemsSource="{Binding Summary}" Margin="0,2,0,0" Focusable="False">
                   <ItemsControl.ItemTemplate>

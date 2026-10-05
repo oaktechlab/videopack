@@ -29,7 +29,8 @@ public sealed class ExportService(AppPaths paths, PresetService presetService)
             ValidateRequest(request);
             if (request.AddIntro)
                 segments.Add(await ProbeSegmentAsync(paths.ResolveAsset(presetService.Configuration.IntroLandscape), cancellationToken));
-            segments.Add(new VideoSegment(request.Source.Path, request.Source.DurationSeconds, request.Source.HasAudio, request.AddWatermark));
+            var (keptDuration, trimStart, trimEnd) = ResolveTrim(request);
+            segments.Add(new VideoSegment(request.Source.Path, keptDuration, request.Source.HasAudio, request.AddWatermark, trimStart, trimEnd));
             if (request.AddOutro)
             {
                 var relativeOutro = VideoRules.GetOutroAsset(request.Format, presetService.Configuration);
@@ -93,7 +94,28 @@ public sealed class ExportService(AppPaths paths, PresetService presetService)
             throw new InvalidDataException("La cortinilla inicial solo está disponible en formato 16:9.");
         if (request.AddWatermark && (string.IsNullOrWhiteSpace(request.WatermarkPath) || !File.Exists(request.WatermarkPath)))
             throw new FileNotFoundException("No se encuentra el logo seleccionado.", request.WatermarkPath);
+        if (request.TrimEndSeconds is double trimEnd)
+        {
+            if (request.TrimStartSeconds < -0.001 || trimEnd <= request.TrimStartSeconds)
+                throw new InvalidDataException("El recorte del vídeo no es válido.");
+            if (trimEnd > request.Source.DurationSeconds + 0.05)
+                throw new InvalidDataException("El recorte sobrepasa la duración del vídeo.");
+            var minimum = Math.Min(VideoTrim.MinimumKeptSeconds, request.Source.DurationSeconds);
+            if (trimEnd - request.TrimStartSeconds < minimum - 0.05)
+                throw new InvalidDataException("El vídeo resultante es demasiado corto.");
+        }
         if (File.Exists(request.OutputPath)) throw new IOException("Ya existe un archivo con ese nombre en la carpeta de destino.");
+    }
+
+    private static (double Kept, double Start, double? End) ResolveTrim(ExportRequest request)
+    {
+        if (request.TrimEndSeconds is not double end)
+            return (request.Source.DurationSeconds, 0, null);
+        var start = Math.Clamp(request.TrimStartSeconds, 0, request.Source.DurationSeconds);
+        end = Math.Clamp(end, start, request.Source.DurationSeconds);
+        if (!VideoTrim.IsActive(start, end, request.Source.DurationSeconds))
+            return (request.Source.DurationSeconds, 0, null);
+        return (Math.Max(0.01, end - start), start, end);
     }
 
     private static void EnsureDiskSpace(string outputPath, long estimatedBytes)

@@ -112,5 +112,35 @@ public sealed class VideoRulesTests
         Assert.DoesNotContain("[v0src]", filter);
         Assert.DoesNotContain("[v2src]", filter);
         Assert.Contains("[v0][a0][v1][a1][v2][a2]concat=n=3", filter);
+        Assert.DoesNotContain("trim=start=", filter);
+    }
+
+    [Fact]
+    public void Trim_is_applied_before_scale_watermark_and_concat()
+    {
+        var builder = new VideoCommandBuilder();
+        var request = new ExportRequest(
+            new VideoMetadata("C:\\clips\\user.mp4", 1920, 1080, 25, 120, "h264", 5_000_000, true, "aac", 100_000),
+            OutputFormat.Landscape, FramingMode.Fit, 1920, 1080, 25, 5000, 192, "libx264", "aac",
+            true, true, true, "C:\\logos\\logo.png", WatermarkPosition.TopRight, 0.12, 0.035,
+            "C:\\out\\final.mp4", 3.5, 90);
+        var arguments = builder.Build(request,
+        [
+            new("C:\\bumpers\\in.mp4", 4, true),
+            new("C:\\clips\\user.mp4", 86.5, true, true, 3.5, 90),
+            new("C:\\bumpers\\out.mp4", 3, false)
+        ], "C:\\temp\\partial.mp4");
+        var filter = arguments[Array.IndexOf(arguments.ToArray(), "-filter_complex") + 1];
+        var mainInput = Array.IndexOf(arguments.ToArray(), "C:\\clips\\user.mp4");
+
+        Assert.Equal("+genpts", arguments[mainInput - 2]);
+        Assert.Contains("setpts=PTS-STARTPTS,trim=start=3.5:end=90,setpts=PTS-STARTPTS,scale=", filter);
+        Assert.Contains("atrim=start=3.5:end=90", filter);
+        Assert.Contains("atrim=duration=86.5", filter);
+        Assert.Contains("[v1src][wm]overlay=", filter);
+        Assert.DoesNotContain("[0:v:0]setpts=PTS-STARTPTS,trim=", filter);
+        Assert.Contains("anullsrc=channel_layout=stereo:sample_rate=48000,atrim=duration=3", filter);
+        Assert.Equal("C:\\temp\\partial.mp4", arguments[^1]);
+        Assert.NotEqual("C:\\clips\\user.mp4", arguments[^1]);
     }
 }

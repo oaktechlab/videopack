@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.Globalization;
+using System.Windows;
 using System.Windows.Media.Imaging;
 using VideoPack.FFmpeg;
 using VideoPack.Infrastructure;
@@ -51,6 +52,11 @@ public sealed class MainViewModel : ObservableObject
     private bool _isCancelled;
     private string _previewErrorMessage = string.Empty;
     private ErrorArea _errorArea;
+    private int _mediaRevision;
+    private double _trimStart;
+    private double _trimEnd;
+    private PreviewTimeline _timeline = PreviewTimeline.Empty;
+    private PreviewSegmentKind _activePreviewSegment = PreviewSegmentKind.Main;
 
     private enum ErrorArea { None, Load, Export }
 
@@ -90,6 +96,7 @@ public sealed class MainViewModel : ObservableObject
     public RelayCommand OpenOutputCommand { get; }
     public RelayCommand OpenFolderCommand { get; }
     public RelayCommand NewPreparationCommand { get; }
+    public RelayCommand ResetTrimCommand { get; }
     public AsyncRelayCommand ExportCommand { get; }
 
     public MainViewModel()
@@ -106,6 +113,7 @@ public sealed class MainViewModel : ObservableObject
         OpenOutputCommand = new RelayCommand(_ => OpenPath(OutputPath), _ => IsComplete && File.Exists(OutputPath));
         OpenFolderCommand = new RelayCommand(_ => OpenPath(OutputFolder), _ => IsComplete && Directory.Exists(OutputFolder));
         NewPreparationCommand = new RelayCommand(_ => Reset(), _ => IsComplete || Video is not null);
+        ResetTrimCommand = new RelayCommand(_ => ResetTrim(), _ => IsTrimmed);
         ExportCommand = new AsyncRelayCommand(ExportAsync, CanExport);
         RefreshSelections();
     }
@@ -122,8 +130,10 @@ public sealed class MainViewModel : ObservableObject
         RefreshSummary();
     }
 
-    public VideoMetadata? Video { get => _video; private set { if (SetProperty(ref _video, value)) { OnPropertyChanged(nameof(HasVideo)); OnPropertyChanged(nameof(VideoTechnicalDetails)); OnPropertyChanged(nameof(PreviewPath)); OnPropertyChanged(nameof(OutputPath)); RefreshSummary(); ExportCommand.RaiseCanExecuteChanged(); } } }
+    public VideoMetadata? Video { get => _video; private set => SetVideo(value); }
     public bool HasVideo => Video is not null;
+    public int MediaRevision => _mediaRevision;
+    public PreviewTimeline Timeline => _timeline;
     public bool ShowIntroInTimeline => Format == OutputFormat.Landscape && AddIntro;
     public bool ShowOutroInTimeline => AddOutro;
     public bool ShowVideoInTimeline => Video is not null;
@@ -140,10 +150,32 @@ public sealed class MainViewModel : ObservableObject
     public bool ShowIntroOption => VideoRules.IsIntroAvailable(Format);
     public string IntroAvailabilityMessage => ShowIntroOption ? "" : "Cortinilla inicial disponible solo en formato 16:9.";
     public string OutputResolution => $"{OutputWidth} × {OutputHeight}";
-    public string TotalDurationLabel => TimeSpan.FromSeconds(TotalDurationSeconds).ToString("m\\:ss");
-    public double TotalDurationSeconds => (Video?.DurationSeconds ?? 0)
-        + (Format == OutputFormat.Landscape && AddIntro ? _introDuration : 0)
-        + (AddOutro ? Format == OutputFormat.Landscape ? _outroLandscapeDuration : _outroPortraitDuration : 0);
+    public string TotalDurationLabel => TimeFormat.Clock(TotalDurationSeconds);
+    public double SourceDurationSeconds => Video?.DurationSeconds ?? 0;
+    public double TrimStartSeconds => _trimStart;
+    public double TrimEndSeconds => _trimEnd;
+    public double KeptDurationSeconds => Video is null ? 0 : VideoTrim.Kept(_trimStart, _trimEnd);
+    public bool IsTrimmed => Video is not null && VideoTrim.IsActive(_trimStart, _trimEnd, SourceDurationSeconds);
+    public string TrimStartLabel => TimeFormat.Clock(_trimStart);
+    public string TrimEndLabel => TimeFormat.Clock(_trimEnd);
+    public string KeptDurationLabel => TimeFormat.Clock(KeptDurationSeconds);
+    public string TrimSummaryLine => IsTrimmed ? $"Recorte    {TrimStartLabel} → {TrimEndLabel}" : "Recorte    Completo";
+    public string FinalDurationSummary => $"Duración final    ≈ {TotalDurationLabel}";
+    public string CompositionMainLabel => HasVideo ? $"Tu vídeo  ·  {KeptDurationLabel}" : "Tu vídeo";
+    public double OutroDurationSeconds => Format == OutputFormat.Landscape ? _outroLandscapeDuration : _outroPortraitDuration;
+    public GridLength IntroTimelineLength => !ShowIntroInTimeline
+        ? new GridLength(0)
+        : !HasVideo || _introDuration <= 0 ? GridLength.Auto : new GridLength(_introDuration, GridUnitType.Star);
+    public GridLength MainTimelineLength => HasVideo
+        ? new GridLength(Math.Max(KeptDurationSeconds, 0.001), GridUnitType.Star)
+        : new GridLength(1, GridUnitType.Star);
+    public GridLength OutroTimelineLength => !ShowOutroInTimeline
+        ? new GridLength(0)
+        : !HasVideo || OutroDurationSeconds <= 0 ? GridLength.Auto : new GridLength(OutroDurationSeconds, GridUnitType.Star);
+    public bool ShowPreviewWatermark => WatermarkEnabled && HasVideo && _activePreviewSegment == PreviewSegmentKind.Main;
+    public double TotalDurationSeconds => KeptDurationSeconds
+        + (ShowIntroInTimeline ? _introDuration : 0)
+        + (ShowOutroInTimeline ? OutroDurationSeconds : 0);
     public string EstimatedSizeLabel => $"~ {PresetService.EstimateBytes(TotalDurationSeconds, Parse(VideoBitrate), Parse(AudioBitrate)) / 1_000_000d:0} MB (estimación)";
     public string PreviewAspectName => Format switch { OutputFormat.Portrait => "9:16", OutputFormat.Square => "1:1", _ => "16:9" };
     public double PreviewFrameWidth => Format == OutputFormat.Portrait ? 190 : 380;
@@ -225,9 +257,9 @@ public sealed class MainViewModel : ObservableObject
     public OutputFormat Format { get => _format; private set => SetProperty(ref _format, value); }
     public FramingMode Framing { get => _framing; private set => SetProperty(ref _framing, value); }
     public QualityPreset Preset { get => _preset; private set { if (SetProperty(ref _preset, value)) { OnPropertyChanged(nameof(IsCustomPreset)); OnPropertyChanged(nameof(PresetDisplayName)); OnPropertyChanged(nameof(SummaryHeadline)); } } }
-    public bool AddIntro { get => _addIntro; set { if (SetProperty(ref _addIntro, value)) { OnPropertyChanged(nameof(ShowIntroInTimeline)); RefreshSummary(); } } }
-    public bool AddOutro { get => _addOutro; set { if (SetProperty(ref _addOutro, value)) { OnPropertyChanged(nameof(ShowOutroInTimeline)); RefreshSummary(); } } }
-    public bool WatermarkEnabled { get => _watermarkEnabled; set { if (SetProperty(ref _watermarkEnabled, value)) RefreshSummary(); } }
+    public bool AddIntro { get => _addIntro; set { if (SetProperty(ref _addIntro, value)) { OnPropertyChanged(nameof(ShowIntroInTimeline)); RebuildTimeline(); RefreshSummary(); } } }
+    public bool AddOutro { get => _addOutro; set { if (SetProperty(ref _addOutro, value)) { OnPropertyChanged(nameof(ShowOutroInTimeline)); RebuildTimeline(); RefreshSummary(); } } }
+    public bool WatermarkEnabled { get => _watermarkEnabled; set { if (SetProperty(ref _watermarkEnabled, value)) { OnPropertyChanged(nameof(ShowPreviewWatermark)); RefreshSummary(); } } }
     public WatermarkPosition WatermarkPosition { get => _watermarkPosition; private set => SetProperty(ref _watermarkPosition, value); }
     public string OutputFolder { get => _outputFolder; set { if (SetProperty(ref _outputFolder, value)) { ClearExportError(); OnPropertyChanged(nameof(OutputPath)); ExportCommand.RaiseCanExecuteChanged(); } } }
     public string OutputFileName { get => _outputFileName; set { if (SetProperty(ref _outputFileName, value)) { ClearExportError(); OnPropertyChanged(nameof(OutputPath)); ExportCommand.RaiseCanExecuteChanged(); } } }
@@ -245,6 +277,104 @@ public sealed class MainViewModel : ObservableObject
     public string ErrorMessage { get => _errorMessage; private set { if (SetProperty(ref _errorMessage, value)) { OnPropertyChanged(nameof(HasLoadError)); OnPropertyChanged(nameof(HasExportError)); } } }
     public string ErrorDetails { get => _errorDetails; private set { if (SetProperty(ref _errorDetails, value)) OnPropertyChanged(nameof(HasErrorDetails)); } }
     public string? LastLogPath { get => _lastLogPath; private set => SetProperty(ref _lastLogPath, value); }
+
+    public void SetTrimStart(double seconds)
+    {
+        if (Video is null) return;
+        ApplyTrim(VideoTrim.ClampStart(seconds, _trimEnd, SourceDurationSeconds));
+    }
+
+    public void SetTrimEnd(double seconds)
+    {
+        if (Video is null) return;
+        ApplyTrim(VideoTrim.ClampEnd(_trimStart, seconds, SourceDurationSeconds));
+    }
+
+    public void ResetTrim()
+    {
+        if (Video is null) return;
+        ApplyTrim(VideoTrim.Full(SourceDurationSeconds));
+    }
+
+    public void SetActivePreviewSegment(PreviewSegmentKind kind)
+    {
+        if (_activePreviewSegment == kind) return;
+        _activePreviewSegment = kind;
+        OnPropertyChanged(nameof(ShowPreviewWatermark));
+    }
+
+    private void SetVideo(VideoMetadata? value)
+    {
+        _video = value;
+        _trimStart = 0;
+        _trimEnd = value?.DurationSeconds ?? 0;
+        _activePreviewSegment = PreviewSegmentKind.Main;
+        _mediaRevision++;
+        OnPropertyChanged(nameof(Video));
+        OnPropertyChanged(nameof(HasVideo));
+        OnPropertyChanged(nameof(VideoTechnicalDetails));
+        OnPropertyChanged(nameof(PreviewPath));
+        OnPropertyChanged(nameof(OutputPath));
+        OnPropertyChanged(nameof(ShowPreviewWatermark));
+        NotifyTrim();
+        RebuildTimeline();
+        OnPropertyChanged(nameof(MediaRevision));
+        RefreshSummary();
+        ExportCommand.RaiseCanExecuteChanged();
+        NewPreparationCommand.RaiseCanExecuteChanged();
+        ResetTrimCommand.RaiseCanExecuteChanged();
+    }
+
+    private void ApplyTrim((double Start, double End) range)
+    {
+        if (Math.Abs(range.Start - _trimStart) < 0.00001 && Math.Abs(range.End - _trimEnd) < 0.00001) return;
+        _trimStart = range.Start;
+        _trimEnd = range.End;
+        NotifyTrim();
+        RebuildTimeline();
+        RefreshSummary();
+        ResetTrimCommand.RaiseCanExecuteChanged();
+    }
+
+    private void NotifyTrim()
+    {
+        OnPropertyChanged(nameof(TrimStartSeconds));
+        OnPropertyChanged(nameof(TrimEndSeconds));
+        OnPropertyChanged(nameof(KeptDurationSeconds));
+        OnPropertyChanged(nameof(IsTrimmed));
+        OnPropertyChanged(nameof(TrimStartLabel));
+        OnPropertyChanged(nameof(TrimEndLabel));
+        OnPropertyChanged(nameof(KeptDurationLabel));
+        OnPropertyChanged(nameof(TrimSummaryLine));
+        OnPropertyChanged(nameof(SourceDurationSeconds));
+    }
+
+    private void RebuildTimeline()
+    {
+        string? intro = null;
+        string? outro = null;
+        if (Video is not null)
+        {
+            var introPath = _paths.ResolveAsset(_presetService.Configuration.IntroLandscape);
+            if (ShowIntroInTimeline && _introDuration > 0 && File.Exists(introPath)) intro = introPath;
+            var outroPath = _paths.ResolveAsset(VideoRules.GetOutroAsset(Format, _presetService.Configuration));
+            if (AddOutro && OutroDurationSeconds > 0 && File.Exists(outroPath)) outro = outroPath;
+        }
+
+        _timeline = PreviewTimeline.ComposeFinal(
+            Video?.Path, _trimStart, _trimEnd,
+            intro is not null, intro, _introDuration,
+            outro is not null, outro, OutroDurationSeconds);
+        OnPropertyChanged(nameof(Timeline));
+        OnPropertyChanged(nameof(IntroTimelineLength));
+        OnPropertyChanged(nameof(MainTimelineLength));
+        OnPropertyChanged(nameof(OutroTimelineLength));
+        OnPropertyChanged(nameof(TotalDurationSeconds));
+        OnPropertyChanged(nameof(TotalDurationLabel));
+        OnPropertyChanged(nameof(FinalDurationSummary));
+        OnPropertyChanged(nameof(EstimatedSizeLabel));
+        OnPropertyChanged(nameof(CompositionMainLabel));
+    }
 
     public async Task LoadVideoAsync(string path)
     {
@@ -307,6 +437,7 @@ public sealed class MainViewModel : ObservableObject
         OnPropertyChanged(nameof(PreviewFrameHeight));
         OnPropertyChanged(nameof(PreviewWatermarkWidth));
         OnPropertyChanged(nameof(PreviewSafeMargin));
+        RebuildTimeline();
         RefreshSummary();
     }
 
@@ -366,6 +497,7 @@ public sealed class MainViewModel : ObservableObject
         OnPropertyChanged(nameof(PreviewSafeMargin));
         OnPropertyChanged(nameof(PreviewStretch));
         OnPropertyChanged(nameof(OutputResolution));
+        RebuildTimeline();
         RefreshSummary();
     }
 
@@ -428,6 +560,7 @@ public sealed class MainViewModel : ObservableObject
         if (File.Exists(portraitOutro)) try { _outroPortraitDuration = (await _probe.ProbeAsync(portraitOutro)).DurationSeconds; } catch (Exception) { }
         OnPropertyChanged(nameof(TotalDurationSeconds));
         OnPropertyChanged(nameof(TotalDurationLabel));
+        RebuildTimeline();
         RefreshSummary();
     }
 
@@ -475,7 +608,12 @@ public sealed class MainViewModel : ObservableObject
         Summary.Add(new("Bitrate de vídeo", $"{Parse(VideoBitrate) / 1000d:0.#} Mbps  ({Parse(VideoBitrate)} kbps)"));
         Summary.Add(new("Fotogramas por segundo", Fps));
         Summary.Add(new("Audio", $"{(AudioCodec == "libmp3lame" ? "MP3" : AudioCodec.ToUpperInvariant())} estéreo  ·  {AudioBitrate} kbps"));
-        if (Video is not null) Summary.Add(new("Tamaño estimado", EstimatedSizeLabel));
+        if (Video is not null)
+        {
+            Summary.Add(new("Recorte", IsTrimmed ? $"{TrimStartLabel} → {TrimEndLabel}" : "Completo"));
+            Summary.Add(new("Duración final", $"≈ {TotalDurationLabel}"));
+            Summary.Add(new("Tamaño estimado", EstimatedSizeLabel));
+        }
         OnPropertyChanged(nameof(EstimatedSizeLabel));
         OnPropertyChanged(nameof(TotalDurationLabel));
         foreach (var name in DisplayProperties) OnPropertyChanged(name);
@@ -489,7 +627,9 @@ public sealed class MainViewModel : ObservableObject
         nameof(FramingIsRelevant), nameof(FramingHint), nameof(FitDescription), nameof(CropDescription),
         nameof(FramingFrameWidth), nameof(FramingFrameHeight), nameof(FitContentWidth), nameof(FitContentHeight),
         nameof(CropContentWidth), nameof(CropContentHeight), nameof(PositionFrameWidth), nameof(PositionFrameHeight),
-        nameof(ShowVideoInTimeline), nameof(ShowIntroInTimeline), nameof(ShowOutroInTimeline), nameof(ShowDestination)
+        nameof(ShowVideoInTimeline), nameof(ShowIntroInTimeline), nameof(ShowOutroInTimeline), nameof(ShowDestination),
+        nameof(TrimSummaryLine), nameof(FinalDurationSummary), nameof(CompositionMainLabel), nameof(KeptDurationLabel),
+        nameof(IntroTimelineLength), nameof(MainTimelineLength), nameof(OutroTimelineLength), nameof(IsTrimmed)
     ];
 
     private static string CodecName(string codec) => codec.ToLowerInvariant() switch
@@ -546,7 +686,8 @@ public sealed class MainViewModel : ObservableObject
                 Parse(VideoBitrate), Parse(AudioBitrate), VideoCodec, AudioCodec,
                 Format == OutputFormat.Landscape && AddIntro, AddOutro, WatermarkEnabled,
                 SelectedLogoPath, WatermarkPosition, _presetService.Configuration.WatermarkWidthRatio,
-                _presetService.Configuration.SafeMarginRatio, OutputPath);
+                _presetService.Configuration.SafeMarginRatio, OutputPath,
+                IsTrimmed ? TrimStartSeconds : 0, IsTrimmed ? TrimEndSeconds : null);
             var result = await _exportService.ExportAsync(request, progress, _exportCancellation.Token);
             StatusMessage = "Vídeo preparado correctamente";
             Progress = 100;

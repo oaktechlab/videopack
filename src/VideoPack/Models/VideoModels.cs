@@ -80,6 +80,8 @@ public sealed record ExportRequest(
     WatermarkPosition WatermarkPosition,
     double WatermarkWidthRatio,
     double SafeMarginRatio,
-    string OutputPath);
+    string OutputPath,
+    double TrimStartSeconds = 0,
+    double? TrimEndSeconds = null);
 
 public sealed record ExportResult(string OutputPath, double DurationSeconds, long FileSizeBytes);
