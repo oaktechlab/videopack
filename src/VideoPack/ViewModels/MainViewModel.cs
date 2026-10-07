@@ -22,10 +22,13 @@ public sealed class MainViewModel : ObservableObject
     private OutputFormat _format = OutputFormat.Landscape;
     private FramingMode _framing = FramingMode.Fit;
     private QualityPreset _preset = QualityPreset.Youtube;
-    private WatermarkPosition _watermarkPosition = WatermarkPosition.TopRight;
+    private WatermarkPosition _watermarkPosition = WatermarkPosition.BottomRight;
+    private WatermarkPosition _textWatermarkPosition = WatermarkPosition.BottomLeft;
     private bool _addIntro = true;
     private bool _addOutro = true;
     private bool _watermarkEnabled = true;
+    private bool _textWatermarkEnabled = true;
+    private string _textWatermark = VideoRules.DefaultTextWatermark;
     private bool _isBusy;
     private bool _isComplete;
     private double _progress;
@@ -85,6 +88,13 @@ public sealed class MainViewModel : ObservableObject
         new(WatermarkPosition.BottomLeft, "Inferior izquierda", "", "↙"),
         new(WatermarkPosition.BottomRight, "Inferior derecha", "", "↘")
     ];
+    public ObservableCollection<UiOption> TextPositions { get; } =
+    [
+        new(WatermarkPosition.TopLeft, "Superior izquierda", "", "↖"),
+        new(WatermarkPosition.TopRight, "Superior derecha", "", "↗"),
+        new(WatermarkPosition.BottomLeft, "Inferior izquierda", "", "↙"),
+        new(WatermarkPosition.BottomRight, "Inferior derecha", "", "↘")
+    ];
     public ObservableCollection<LogoOption> Logos { get; } = [];
     public ObservableCollection<SummaryItem> Summary { get; } = [];
 
@@ -92,6 +102,7 @@ public sealed class MainViewModel : ObservableObject
     public RelayCommand SelectFramingCommand { get; }
     public RelayCommand SelectPresetCommand { get; }
     public RelayCommand SelectPositionCommand { get; }
+    public RelayCommand SelectTextPositionCommand { get; }
     public RelayCommand CancelExportCommand { get; }
     public RelayCommand OpenOutputCommand { get; }
     public RelayCommand OpenFolderCommand { get; }
@@ -109,6 +120,7 @@ public sealed class MainViewModel : ObservableObject
         SelectFramingCommand = new RelayCommand(value => SelectFraming((FramingMode)value!));
         SelectPresetCommand = new RelayCommand(value => SelectPreset((QualityPreset)value!));
         SelectPositionCommand = new RelayCommand(value => SelectPosition((WatermarkPosition)value!));
+        SelectTextPositionCommand = new RelayCommand(value => SelectTextPosition((WatermarkPosition)value!));
         CancelExportCommand = new RelayCommand(_ => _exportCancellation?.Cancel(), _ => IsBusy);
         OpenOutputCommand = new RelayCommand(_ => OpenPath(OutputPath), _ => IsComplete && File.Exists(OutputPath));
         OpenFolderCommand = new RelayCommand(_ => OpenPath(OutputFolder), _ => IsComplete && Directory.Exists(OutputFolder));
@@ -173,6 +185,9 @@ public sealed class MainViewModel : ObservableObject
         ? new GridLength(0)
         : !HasVideo || OutroDurationSeconds <= 0 ? GridLength.Auto : new GridLength(OutroDurationSeconds, GridUnitType.Star);
     public bool ShowPreviewWatermark => WatermarkEnabled && HasVideo && _activePreviewSegment == PreviewSegmentKind.Main;
+    public bool ShowPreviewTextWatermark => TextWatermarkEnabled && HasVideo && _activePreviewSegment == PreviewSegmentKind.Main && VideoRules.TextWatermarkHasContent(TextWatermark);
+    public double PreviewTextFontSize => Math.Min(PreviewFrameWidth, PreviewFrameHeight) * VideoRules.TextWatermarkFontShortEdgeRatio;
+    public string TextWatermarkFontPath => _paths.ResolveAsset(VideoRules.TextWatermarkFontAsset);
     public double TotalDurationSeconds => KeptDurationSeconds
         + (ShowIntroInTimeline ? _introDuration : 0)
         + (ShowOutroInTimeline ? OutroDurationSeconds : 0);
@@ -221,6 +236,8 @@ public sealed class MainViewModel : ObservableObject
     public bool HasAnyBumper => ShowIntroInTimeline || AddOutro;
     public string WatermarkSummary => WatermarkEnabled ? $"Mosca {SelectedLogo?.Name ?? ""}, {PositionLabel(WatermarkPosition).ToLowerInvariant()}" : "Sin mosca";
     public string WatermarkPositionLabel => PositionLabel(WatermarkPosition);
+    public string TextWatermarkSummary => TextWatermarkEnabled ? $"Mosca de texto, {PositionLabel(TextWatermarkPosition).ToLowerInvariant()}" : "Sin mosca de texto";
+    public string TextWatermarkPositionLabel => PositionLabel(TextWatermarkPosition);
     public string IntroStatusText => ShowIntroOption ? "Presentación de marca al empezar" : "Solo disponible en formato horizontal 16:9";
     public string OutroStatusText => "Cierre de marca, adaptado al formato";
 
@@ -259,8 +276,48 @@ public sealed class MainViewModel : ObservableObject
     public QualityPreset Preset { get => _preset; private set { if (SetProperty(ref _preset, value)) { OnPropertyChanged(nameof(IsCustomPreset)); OnPropertyChanged(nameof(PresetDisplayName)); OnPropertyChanged(nameof(SummaryHeadline)); } } }
     public bool AddIntro { get => _addIntro; set { if (SetProperty(ref _addIntro, value)) { OnPropertyChanged(nameof(ShowIntroInTimeline)); RebuildTimeline(); RefreshSummary(); } } }
     public bool AddOutro { get => _addOutro; set { if (SetProperty(ref _addOutro, value)) { OnPropertyChanged(nameof(ShowOutroInTimeline)); RebuildTimeline(); RefreshSummary(); } } }
-    public bool WatermarkEnabled { get => _watermarkEnabled; set { if (SetProperty(ref _watermarkEnabled, value)) { OnPropertyChanged(nameof(ShowPreviewWatermark)); RefreshSummary(); } } }
+    public bool WatermarkEnabled
+    {
+        get => _watermarkEnabled;
+        set
+        {
+            if (!SetProperty(ref _watermarkEnabled, value)) return;
+            if (value) YieldOccupiedCorner(moveText: false);
+            OnPropertyChanged(nameof(ShowPreviewWatermark));
+            RefreshSelections();
+            RefreshSummary();
+        }
+    }
+    public bool TextWatermarkEnabled
+    {
+        get => _textWatermarkEnabled;
+        set
+        {
+            if (!SetProperty(ref _textWatermarkEnabled, value)) return;
+            if (value) YieldOccupiedCorner(moveText: true);
+            OnPropertyChanged(nameof(ShowPreviewTextWatermark));
+            RefreshSelections();
+            RefreshSummary();
+        }
+    }
+    public string TextWatermark
+    {
+        get => _textWatermark;
+        set
+        {
+            var normalized = VideoRules.NormalizeTextWatermark(value);
+            if (!SetProperty(ref _textWatermark, normalized))
+            {
+                if (!string.Equals(value, normalized, StringComparison.Ordinal))
+                    OnPropertyChanged(nameof(TextWatermark));
+                return;
+            }
+            OnPropertyChanged(nameof(ShowPreviewTextWatermark));
+            RefreshSummary();
+        }
+    }
     public WatermarkPosition WatermarkPosition { get => _watermarkPosition; private set => SetProperty(ref _watermarkPosition, value); }
+    public WatermarkPosition TextWatermarkPosition { get => _textWatermarkPosition; private set => SetProperty(ref _textWatermarkPosition, value); }
     public string OutputFolder { get => _outputFolder; set { if (SetProperty(ref _outputFolder, value)) { ClearExportError(); OnPropertyChanged(nameof(OutputPath)); ExportCommand.RaiseCanExecuteChanged(); } } }
     public string OutputFileName { get => _outputFileName; set { if (SetProperty(ref _outputFileName, value)) { ClearExportError(); OnPropertyChanged(nameof(OutputPath)); ExportCommand.RaiseCanExecuteChanged(); } } }
     public string VideoBitrate { get => _videoBitrate; set { if (SetProperty(ref _videoBitrate, value)) ParametersChanged(); } }
@@ -301,6 +358,7 @@ public sealed class MainViewModel : ObservableObject
         if (_activePreviewSegment == kind) return;
         _activePreviewSegment = kind;
         OnPropertyChanged(nameof(ShowPreviewWatermark));
+        OnPropertyChanged(nameof(ShowPreviewTextWatermark));
     }
 
     private void SetVideo(VideoMetadata? value)
@@ -316,6 +374,7 @@ public sealed class MainViewModel : ObservableObject
         OnPropertyChanged(nameof(PreviewPath));
         OnPropertyChanged(nameof(OutputPath));
         OnPropertyChanged(nameof(ShowPreviewWatermark));
+        OnPropertyChanged(nameof(ShowPreviewTextWatermark));
         NotifyTrim();
         RebuildTimeline();
         OnPropertyChanged(nameof(MediaRevision));
@@ -461,9 +520,36 @@ public sealed class MainViewModel : ObservableObject
 
     private void SelectPosition(WatermarkPosition position)
     {
+        if (TextWatermarkEnabled && position == TextWatermarkPosition) return;
+        if (WatermarkPosition == position) return;
         WatermarkPosition = position;
         RefreshSelections();
         RefreshSummary();
+    }
+
+    private void SelectTextPosition(WatermarkPosition position)
+    {
+        if (WatermarkEnabled && position == WatermarkPosition) return;
+        if (TextWatermarkPosition == position) return;
+        TextWatermarkPosition = position;
+        RefreshSelections();
+        RefreshSummary();
+    }
+
+    private void YieldOccupiedCorner(bool moveText)
+    {
+        if (!WatermarkEnabled || !TextWatermarkEnabled || WatermarkPosition != TextWatermarkPosition) return;
+        if (moveText) TextWatermarkPosition = FirstFreeCorner(WatermarkPosition);
+        else WatermarkPosition = FirstFreeCorner(TextWatermarkPosition);
+    }
+
+    private static WatermarkPosition FirstFreeCorner(WatermarkPosition occupied)
+    {
+        foreach (var candidate in new[] { WatermarkPosition.BottomLeft, WatermarkPosition.BottomRight, WatermarkPosition.TopLeft, WatermarkPosition.TopRight })
+        {
+            if (candidate != occupied) return candidate;
+        }
+        return occupied;
     }
 
     private void ApplyPreset(QualityPreset preset, bool markCustom)
@@ -534,7 +620,21 @@ public sealed class MainViewModel : ObservableObject
         foreach (var option in Formats) option.IsSelected = Equals(option.Value, Format);
         foreach (var option in Framings) option.IsSelected = Equals(option.Value, Framing);
         foreach (var option in Presets) option.IsSelected = Equals(option.Value, Preset);
-        foreach (var option in Positions) option.IsSelected = Equals(option.Value, WatermarkPosition);
+        RefreshCornerOptions(Positions, WatermarkPosition, TextWatermarkEnabled, TextWatermarkPosition, "mosca de texto");
+        RefreshCornerOptions(TextPositions, TextWatermarkPosition, WatermarkEnabled, WatermarkPosition, "mosca de logo");
+    }
+
+    private static void RefreshCornerOptions(
+        IEnumerable<UiOption> options, WatermarkPosition selected, bool otherEnabled, WatermarkPosition otherPosition, string otherName)
+    {
+        foreach (var option in options)
+        {
+            var position = (WatermarkPosition)option.Value;
+            var blocked = otherEnabled && position == otherPosition;
+            option.IsSelected = position == selected;
+            option.IsEnabled = !blocked;
+            option.ToolTip = blocked ? $"{option.Title} · ocupada por la {otherName}" : option.Title;
+        }
     }
 
     private void UpdateOutputName()
@@ -623,6 +723,7 @@ public sealed class MainViewModel : ObservableObject
     [
         nameof(PresetDisplayName), nameof(FormatDisplayName), nameof(SummaryHeadline), nameof(SummaryFacts),
         nameof(BumpersSummary), nameof(HasAnyBumper), nameof(WatermarkSummary), nameof(WatermarkPositionLabel),
+        nameof(TextWatermarkSummary), nameof(TextWatermarkPositionLabel),
         nameof(IntroStatusText), nameof(VideoName), nameof(VideoPrimaryDetails), nameof(VideoSecondaryDetails), nameof(VideoDurationLabel),
         nameof(FramingIsRelevant), nameof(FramingHint), nameof(FitDescription), nameof(CropDescription),
         nameof(FramingFrameWidth), nameof(FramingFrameHeight), nameof(FitContentWidth), nameof(FitContentHeight),
@@ -687,7 +788,8 @@ public sealed class MainViewModel : ObservableObject
                 Format == OutputFormat.Landscape && AddIntro, AddOutro, WatermarkEnabled,
                 SelectedLogoPath, WatermarkPosition, _presetService.Configuration.WatermarkWidthRatio,
                 _presetService.Configuration.SafeMarginRatio, OutputPath,
-                IsTrimmed ? TrimStartSeconds : 0, IsTrimmed ? TrimEndSeconds : null);
+                IsTrimmed ? TrimStartSeconds : 0, IsTrimmed ? TrimEndSeconds : null,
+                TextWatermarkEnabled, TextWatermark, TextWatermarkPosition, TextWatermarkFontPath);
             var result = await _exportService.ExportAsync(request, progress, _exportCancellation.Token);
             StatusMessage = "Vídeo preparado correctamente";
             Progress = 100;

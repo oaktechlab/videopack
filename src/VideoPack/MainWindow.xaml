@@ -132,6 +132,10 @@
       <Setter Property="Background" Value="{DynamicResource GlyphBrush}" />
       <Style.Triggers><DataTrigger Binding="{Binding WatermarkEnabled}" Value="True"><Setter Property="Background" Value="{DynamicResource AccentBrush}" /></DataTrigger></Style.Triggers>
     </Style>
+    <Style x:Key="TextWatermarkMark" TargetType="TextBlock">
+      <Setter Property="Foreground" Value="{DynamicResource GlyphBrush}" />
+      <Style.Triggers><DataTrigger Binding="{Binding TextWatermarkEnabled}" Value="True"><Setter Property="Foreground" Value="{DynamicResource AccentBrush}" /></DataTrigger></Style.Triggers>
+    </Style>
 
     <Style x:Key="DropZone" TargetType="Button">
       <Setter Property="Foreground" Value="{DynamicResource InkBrush}" />
@@ -168,6 +172,10 @@
             <ControlTemplate.Triggers>
               <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Bd" Property="Background" Value="#26FFFFFF" /></Trigger>
               <Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="Bd" Property="Background" Value="#33FFFFFF" /></Trigger>
+              <Trigger Property="IsEnabled" Value="False">
+                <Setter TargetName="Bd" Property="Opacity" Value="0.28" />
+                <Setter Property="Cursor" Value="Arrow" />
+              </Trigger>
             </ControlTemplate.Triggers>
           </ControlTemplate>
         </Setter.Value>
@@ -576,7 +584,7 @@
             <DockPanel Margin="0,0,0,16">
               <Border Style="{StaticResource StepBadge}"><TextBlock Text="4" Style="{StaticResource StepNumber}" /></Border>
               <StackPanel>
-                <TextBlock Text="Cortinillas y mosca" Style="{StaticResource SectionTitle}" />
+                <TextBlock Text="Cortinillas y moscas" Style="{StaticResource SectionTitle}" />
                 <TextBlock Text="Elementos de marca que se añaden automáticamente." Style="{StaticResource SectionSubtitle}" />
               </StackPanel>
             </DockPanel>
@@ -617,7 +625,7 @@
                 </CheckBox>
                 <Border Height="1" Background="{DynamicResource StrokeBrush}" Margin="76,0,0,0" />
                 <CheckBox Style="{StaticResource SwitchRow}" IsChecked="{Binding WatermarkEnabled}"
-                          AutomationProperties.AutomationId="WatermarkToggle" AutomationProperties.Name="Mosca">
+                          AutomationProperties.AutomationId="WatermarkToggle" AutomationProperties.Name="Mosca de logo">
                   <Grid>
                     <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
                     <Border Width="40" Height="40" CornerRadius="10" Background="{DynamicResource SurfaceAltBrush}">
@@ -627,7 +635,7 @@
                       </Grid>
                     </Border>
                     <StackPanel Grid.Column="1" Margin="16,0,0,0" VerticalAlignment="Center">
-                      <TextBlock Text="Mosca" FontSize="15" FontWeight="SemiBold" />
+                      <TextBlock Text="Mosca de logo" FontSize="15" FontWeight="SemiBold" />
                       <TextBlock Text="Tu logo, solo sobre tu vídeo" FontSize="13" Foreground="{DynamicResource Ink2Brush}" Margin="0,2,0,0" />
                     </StackPanel>
                   </Grid>
@@ -648,7 +656,7 @@
                           <ItemsControl.ItemsPanel><ItemsPanelTemplate><UniformGrid Rows="2" Columns="2" /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
                           <ItemsControl.ItemTemplate>
                             <DataTemplate>
-                              <Button Style="{StaticResource CornerButton}" ToolTip="{Binding Title}" AutomationProperties.Name="{Binding Title}"
+                              <Button Style="{StaticResource CornerButton}" ToolTip="{Binding ToolTip}" IsEnabled="{Binding IsEnabled}" AutomationProperties.Name="{Binding ToolTip}"
                                       Command="{Binding DataContext.SelectPositionCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding Value}">
                                 <Grid Margin="7">
                                   <Ellipse x:Name="Dot" Width="9" Height="9" Stroke="#7D8590" StrokeThickness="1.5" HorizontalAlignment="Left" VerticalAlignment="Top" />
@@ -678,6 +686,75 @@
                       </Border>
                     </Grid>
                     <TextBlock Text="{Binding WatermarkPositionLabel}" Style="{StaticResource Caption}" FontSize="12.5" HorizontalAlignment="Center" Margin="0,8,0,0" />
+                  </StackPanel>
+                </Grid>
+                <Border Height="1" Background="{DynamicResource StrokeBrush}" Margin="76,0,0,0" />
+                <CheckBox Style="{StaticResource SwitchRow}" IsChecked="{Binding TextWatermarkEnabled}"
+                          AutomationProperties.AutomationId="TextWatermarkToggle" AutomationProperties.Name="Mosca de texto">
+                  <Grid>
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                    <Border Width="40" Height="40" CornerRadius="10" Background="{DynamicResource SurfaceAltBrush}">
+                      <Grid Width="24" Height="15">
+                        <Border CornerRadius="2" Background="{DynamicResource GlyphBrush}" Opacity="0.55" />
+                        <TextBlock Text="T" Style="{StaticResource TextWatermarkMark}" FontSize="8" FontWeight="SemiBold" HorizontalAlignment="Left" VerticalAlignment="Bottom" Margin="2,0,0,1" />
+                      </Grid>
+                    </Border>
+                    <StackPanel Grid.Column="1" Margin="16,0,0,0" VerticalAlignment="Center">
+                      <TextBlock Text="Mosca de texto" FontSize="15" FontWeight="SemiBold" />
+                      <TextBlock Text="Un crédito con tu texto, solo sobre tu vídeo" FontSize="13" Foreground="{DynamicResource Ink2Brush}" Margin="0,2,0,0" />
+                    </StackPanel>
+                  </Grid>
+                </CheckBox>
+                <Grid Style="{StaticResource FadeIn}" Margin="76,6,20,22" Visibility="{Binding TextWatermarkEnabled, Converter={StaticResource Vis}}">
+                  <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="24" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                  <StackPanel>
+                    <TextBlock Text="Texto" Style="{StaticResource FieldLabel}" />
+                    <TextBox x:Name="TextWatermarkBox" Style="{StaticResource MultilineField}"
+                             Text="{Binding TextWatermark, UpdateSourceTrigger=PropertyChanged}"
+                             SpellCheck.IsEnabled="False"
+                             PreviewTextInput="TextWatermarkBox_PreviewTextInput"
+                             PreviewKeyDown="TextWatermarkBox_PreviewKeyDown"
+                             AutomationProperties.AutomationId="TextWatermarkBox" AutomationProperties.Name="Texto de la mosca" />
+                    <TextBlock Text="Hasta 3 líneas y 30 caracteres por línea." Style="{StaticResource Caption}" FontSize="12.5" Margin="2,8,0,0" />
+                  </StackPanel>
+                  <StackPanel Grid.Column="2">
+                    <TextBlock Text="Posición" Style="{StaticResource FieldLabel}" />
+                    <Grid Width="176" Height="120">
+                      <Border Width="{Binding PositionFrameWidth}" Height="{Binding PositionFrameHeight}" CornerRadius="6" Background="{DynamicResource FrameBrush}" HorizontalAlignment="Center" VerticalAlignment="Center">
+                        <ItemsControl ItemsSource="{Binding TextPositions}" Focusable="False">
+                          <ItemsControl.ItemsPanel><ItemsPanelTemplate><UniformGrid Rows="2" Columns="2" /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+                          <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                              <Button Style="{StaticResource CornerButton}" ToolTip="{Binding ToolTip}" IsEnabled="{Binding IsEnabled}" AutomationProperties.Name="{Binding ToolTip}"
+                                      Command="{Binding DataContext.SelectTextPositionCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding Value}">
+                                <Grid Margin="7">
+                                  <Ellipse x:Name="Dot" Width="9" Height="9" Stroke="#7D8590" StrokeThickness="1.5" HorizontalAlignment="Left" VerticalAlignment="Top" />
+                                  <TextBlock x:Name="Mark" Text="Aa" FontFamily="{StaticResource MoscaFont}" FontWeight="Light" FontStretch="SemiCondensed" FontSize="13" Foreground="White"
+                                             HorizontalAlignment="Left" VerticalAlignment="Top" Visibility="Collapsed" />
+                                </Grid>
+                              </Button>
+                              <DataTemplate.Triggers>
+                                <DataTrigger Binding="{Binding Value}" Value="{x:Static m:WatermarkPosition.TopRight}">
+                                  <Setter TargetName="Dot" Property="HorizontalAlignment" Value="Right" /><Setter TargetName="Mark" Property="HorizontalAlignment" Value="Right" />
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding Value}" Value="{x:Static m:WatermarkPosition.BottomLeft}">
+                                  <Setter TargetName="Dot" Property="VerticalAlignment" Value="Bottom" /><Setter TargetName="Mark" Property="VerticalAlignment" Value="Bottom" />
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding Value}" Value="{x:Static m:WatermarkPosition.BottomRight}">
+                                  <Setter TargetName="Dot" Property="HorizontalAlignment" Value="Right" /><Setter TargetName="Mark" Property="HorizontalAlignment" Value="Right" />
+                                  <Setter TargetName="Dot" Property="VerticalAlignment" Value="Bottom" /><Setter TargetName="Mark" Property="VerticalAlignment" Value="Bottom" />
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                                  <Setter TargetName="Dot" Property="Visibility" Value="Collapsed" />
+                                  <Setter TargetName="Mark" Property="Visibility" Value="Visible" />
+                                </DataTrigger>
+                              </DataTemplate.Triggers>
+                            </DataTemplate>
+                          </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                      </Border>
+                    </Grid>
+                    <TextBlock Text="{Binding TextWatermarkPositionLabel}" Style="{StaticResource Caption}" FontSize="12.5" HorizontalAlignment="Center" Margin="0,8,0,0" />
                   </StackPanel>
                 </Grid>
               </StackPanel>
@@ -721,6 +798,13 @@
                     <MediaElement x:Name="PreviewMedia" LoadedBehavior="Manual" UnloadedBehavior="Manual" ScrubbingEnabled="True" Stretch="Uniform" />
                     <Image x:Name="PreviewWatermark" Source="{Binding SelectedLogoPath}" Stretch="Uniform" HorizontalAlignment="Right" VerticalAlignment="Top"
                            IsHitTestVisible="False" RenderOptions.BitmapScalingMode="HighQuality" Visibility="{Binding ShowPreviewWatermark, Converter={StaticResource Vis}}" />
+                    <TextBlock x:Name="PreviewTextWatermark" Text="{Binding TextWatermark}" FontFamily="{StaticResource MoscaFont}" FontWeight="Light" FontStretch="SemiCondensed"
+                               Foreground="White" TextWrapping="NoWrap" IsHitTestVisible="False" HorizontalAlignment="Left" VerticalAlignment="Bottom"
+                               Visibility="{Binding ShowPreviewTextWatermark, Converter={StaticResource Vis}}">
+                      <TextBlock.Effect>
+                        <DropShadowEffect Color="Black" BlurRadius="5" ShadowDepth="1" Opacity="0.6" Direction="315" />
+                      </TextBlock.Effect>
+                    </TextBlock>
                     <StackPanel x:Name="PreviewEmptyState" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="14,0">
                       <TextBlock Text="&#xE714;" FontFamily="{StaticResource IconFont}" FontSize="24" Foreground="#5E6670" HorizontalAlignment="Center" />
                       <TextBlock Text="Aquí verás cómo queda tu vídeo" FontSize="13" Foreground="#9AA1AB" TextAlignment="Center" TextWrapping="Wrap" Margin="0,10,0,0"
@@ -795,6 +879,14 @@
                   <Border Width="6" Height="3.5" CornerRadius="1" Style="{StaticResource WatermarkGlyph}" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,2,2,0" />
                 </Grid>
                 <TextBlock Grid.Column="1" Text="{Binding WatermarkSummary}" Style="{StaticResource SummaryLine}" ToolTip="{Binding WatermarkSummary}" />
+              </Grid>
+              <Grid Margin="0,7,0,0">
+                <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                <Grid Width="22" Height="13" VerticalAlignment="Center">
+                  <Border CornerRadius="1.5" Background="{DynamicResource GlyphBrush}" Opacity="0.55" />
+                  <TextBlock Text="T" Style="{StaticResource TextWatermarkMark}" FontSize="8" FontWeight="SemiBold" HorizontalAlignment="Left" VerticalAlignment="Bottom" Margin="2,0,0,0" />
+                </Grid>
+                <TextBlock Grid.Column="1" Text="{Binding TextWatermarkSummary}" Style="{StaticResource SummaryLine}" ToolTip="{Binding TextWatermark}" />
               </Grid>
               <StackPanel Orientation="Horizontal" Margin="0,7,0,0" Visibility="{Binding HasVideo, Converter={StaticResource Vis}}">
                 <Grid Width="22" Height="13" VerticalAlignment="Center">
@@ -997,7 +1089,7 @@
                   <vm:HelpStep Number="1" Title="Añade tu vídeo" Text="Arrástralo a la ventana o haz clic en la zona de carga. Admite MP4, MOV, MKV, AVI, M4V y WEBM." />
                   <vm:HelpStep Number="2" Title="Elige para qué es" Text="Master, YouTube o Redes ajustan la calidad por ti. Con Personalizado decides la resolución, los fotogramas, los códecs y el bitrate." />
                   <vm:HelpStep Number="3" Title="Ajusta el formato" Text="Horizontal, vertical o cuadrado. Después decide si el vídeo se encuadra completo o se recorta para llenar todo el encuadre." />
-                  <vm:HelpStep Number="4" Title="Añade la marca" Text="Activa las cortinillas inicial y final y la mosca. La mosca se incrusta solo sobre tu vídeo. Escoge el logo y la esquina en la que aparecerá." />
+                  <vm:HelpStep Number="4" Title="Añade la marca" Text="Activa las cortinillas inicial y final, la mosca de logo y la mosca de texto. Ambas se incrustan solo sobre tu vídeo y cada una ocupa una esquina distinta." />
                   <vm:HelpStep Number="5" Title="Exporta" Text="Revisa la vista previa, comprueba el nombre del archivo y la carpeta de destino, y pulsa Exportar vídeo." IsLast="True" />
                 </ItemsControl>
 

@@ -143,4 +143,83 @@ public sealed class VideoRulesTests
         Assert.Equal("C:\\temp\\partial.mp4", arguments[^1]);
         Assert.NotEqual("C:\\clips\\user.mp4", arguments[^1]);
     }
+
+    [Fact]
+    public void Default_text_watermark_is_two_lines_within_the_limit()
+    {
+        var text = VideoRules.NormalizeTextWatermark(VideoRules.DefaultTextWatermark);
+        var lines = text.Split('\n');
+
+        Assert.Equal(VideoRules.DefaultTextWatermark, text);
+        Assert.Equal(2, lines.Length);
+        Assert.All(lines, line => Assert.InRange(line.Length, 1, VideoRules.TextWatermarkMaxLineLength));
+    }
+
+    [Theory]
+    [InlineData("uno\r\ndos\r\ntres\r\ncuatro", "uno\ndos\ntres")]
+    [InlineData("abcdefghijklmnopqrstuvwxyz0123456789", "abcdefghijklmnopqrstuvwxyz0123")]
+    public void Text_watermark_drops_extra_lines_and_characters(string input, string expected)
+    {
+        Assert.Equal(expected, VideoRules.NormalizeTextWatermark(input));
+        Assert.Equal(35, VideoRules.TextWatermarkFontSize(1920, 1080));
+        Assert.Equal(35, VideoRules.TextWatermarkFontSize(1080, 1920));
+    }
+
+    [Fact]
+    public void Text_watermark_is_drawn_only_on_the_user_video()
+    {
+        var builder = new VideoCommandBuilder();
+        var request = new ExportRequest(
+            new VideoMetadata("C:\\clips\\user.mp4", 1920, 1080, 25, 30, "h264", 5_000_000, true, "aac", 100_000),
+            OutputFormat.Landscape, FramingMode.Fit, 1920, 1080, 25, 5000, 192, "libx264", "aac",
+            true, true, false, null, WatermarkPosition.BottomRight, 0.12, 0.035,
+            "C:\\out\\final.mp4", 0, null,
+            true, VideoRules.DefaultTextWatermark, WatermarkPosition.BottomLeft,
+            "C:\\Video Packs\\fonts\\OpenSans_SemiCondensed-Light.ttf",
+            "C:\\Video Packs\\temp\\mosca.txt");
+        var arguments = builder.Build(request,
+        [
+            new("C:\\bumpers\\in.mp4", 4, true),
+            new("C:\\clips\\user.mp4", 30, true, true),
+            new("C:\\bumpers\\out.mp4", 3, true)
+        ], "C:\\temp\\partial.mp4");
+        var filter = arguments[Array.IndexOf(arguments.ToArray(), "-filter_complex") + 1];
+
+        Assert.Contains("[v1src]drawtext=", filter);
+        Assert.Contains("fontfile='C\\:/Video Packs/fonts/OpenSans_SemiCondensed-Light.ttf'", filter);
+        Assert.Contains("textfile='C\\:/Video Packs/temp/mosca.txt'", filter);
+        Assert.Contains("text_align=left", filter);
+        Assert.Contains("1080-text_h-", filter);
+        Assert.DoesNotContain("[v0src]", filter);
+        Assert.DoesNotContain("[v2src]", filter);
+        Assert.DoesNotContain("overlay=", filter);
+        Assert.Equal(3, arguments.Count(argument => argument == "-i"));
+    }
+
+    [Fact]
+    public void Logo_and_text_watermarks_share_the_user_video_without_sharing_a_corner()
+    {
+        var builder = new VideoCommandBuilder();
+        var request = new ExportRequest(
+            new VideoMetadata("C:\\clips\\user.mp4", 1920, 1080, 25, 30, "h264", 5_000_000, true, "aac", 100_000),
+            OutputFormat.Landscape, FramingMode.Fit, 1920, 1080, 25, 5000, 192, "libx264", "aac",
+            true, true, true, "C:\\logos\\logo.png", WatermarkPosition.BottomRight, 0.12, 0.035,
+            "C:\\out\\final.mp4", 0, null,
+            true, "Proyecto", WatermarkPosition.TopLeft,
+            "C:\\fonts\\OpenSans_SemiCondensed-Light.ttf", "C:\\temp\\mosca.txt");
+        var arguments = builder.Build(request,
+        [
+            new("C:\\bumpers\\in.mp4", 4, true),
+            new("C:\\clips\\user.mp4", 30, true, true),
+            new("C:\\bumpers\\out.mp4", 3, true)
+        ], "C:\\temp\\partial.mp4");
+        var filter = arguments[Array.IndexOf(arguments.ToArray(), "-filter_complex") + 1];
+
+        Assert.Contains("[v1src][wm]overlay=", filter);
+        Assert.Contains("[v1logo]drawtext=", filter);
+        Assert.Contains("text_align=left", filter);
+        Assert.DoesNotContain("[v0src]", filter);
+        Assert.DoesNotContain("[v2src]", filter);
+        Assert.Contains("[v0][a0][v1][a1][v2][a2]concat=n=3", filter);
+    }
 }

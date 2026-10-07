@@ -11,6 +11,7 @@
 
     <FontFamily x:Key="UiFont">Segoe UI</FontFamily>
     <FontFamily x:Key="IconFont">Segoe Fluent Icons, Segoe MDL2 Assets</FontFamily>
+    <FontFamily x:Key="MoscaFont">./Fonts/#Open Sans SemiCondensed</FontFamily>
 
     <Style x:Key="FocusRing">
       <Setter Property="Control.Template">
@@ -258,6 +259,19 @@
           </ControlTemplate>
         </Setter.Value>
       </Setter>
+    </Style>
+
+    <Style x:Key="MultilineField" TargetType="TextBox" BasedOn="{StaticResource Field}">
+      <Setter Property="AcceptsReturn" Value="True" />
+      <Setter Property="TextWrapping" Value="NoWrap" />
+      <Setter Property="MinHeight" Value="92" />
+      <Setter Property="Height" Value="92" />
+      <Setter Property="Padding" Value="10,8" />
+      <Setter Property="VerticalContentAlignment" Value="Top" />
+      <Setter Property="FontFamily" Value="{StaticResource MoscaFont}" />
+      <Setter Property="FontWeight" Value="Light" />
+      <Setter Property="FontStretch" Value="SemiCondensed" />
+      <Setter Property="FontSize" Value="15" />
     </Style>
 
     <Style x:Key="SegmentGroup" TargetType="Border">

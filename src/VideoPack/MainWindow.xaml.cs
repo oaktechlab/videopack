@@ -41,6 +41,7 @@ public partial class MainWindow : Window
             UpdateTransportChrome();
         };
         _viewModel.PropertyChanged += ViewModel_PropertyChanged;
+        DataObject.AddPastingHandler(TextWatermarkBox, TextWatermarkBox_Pasting);
         SourceInitialized += (_, _) => ThemeService.ApplyTitleBar(this);
     }
 
@@ -58,7 +59,8 @@ public partial class MainWindow : Window
     {
         if (e.PropertyName == nameof(MainViewModel.PreviewStretch))
             PreviewMedia.Stretch = _viewModel.PreviewStretch;
-        if (e.PropertyName is nameof(MainViewModel.WatermarkPosition) or nameof(MainViewModel.PreviewFrameWidth) or nameof(MainViewModel.PreviewFrameHeight))
+        if (e.PropertyName is nameof(MainViewModel.WatermarkPosition) or nameof(MainViewModel.TextWatermarkPosition)
+            or nameof(MainViewModel.PreviewFrameWidth) or nameof(MainViewModel.PreviewFrameHeight))
         {
             FitPreviewFrame();
             UpdateWatermarkPreview();
@@ -106,18 +108,71 @@ public partial class MainWindow : Window
 
     private void UpdateWatermarkPreview()
     {
-        (PreviewWatermark.HorizontalAlignment, PreviewWatermark.VerticalAlignment) = _viewModel.WatermarkPosition switch
+        PlaceInCorner(PreviewWatermark, _viewModel.WatermarkPosition);
+        PlaceInCorner(PreviewTextWatermark, _viewModel.TextWatermarkPosition);
+        PreviewTextWatermark.TextAlignment = _viewModel.TextWatermarkPosition is WatermarkPosition.TopRight or WatermarkPosition.BottomRight
+            ? TextAlignment.Right
+            : TextAlignment.Left;
+        var scale = _viewModel.PreviewFrameWidth > 0 && PreviewFrame.Width > 0
+            ? PreviewFrame.Width / _viewModel.PreviewFrameWidth
+            : 1;
+        var margin = new Thickness(_viewModel.PreviewSafeMargin * scale);
+        PreviewWatermark.Width = _viewModel.PreviewWatermarkWidth * scale;
+        PreviewWatermark.Margin = margin;
+        PreviewTextWatermark.FontSize = Math.Max(1, _viewModel.PreviewTextFontSize * scale);
+        PreviewTextWatermark.Margin = margin;
+    }
+
+    private static void PlaceInCorner(FrameworkElement element, WatermarkPosition position)
+    {
+        (element.HorizontalAlignment, element.VerticalAlignment) = position switch
         {
             WatermarkPosition.TopLeft => (HorizontalAlignment.Left, VerticalAlignment.Top),
             WatermarkPosition.TopRight => (HorizontalAlignment.Right, VerticalAlignment.Top),
             WatermarkPosition.BottomLeft => (HorizontalAlignment.Left, VerticalAlignment.Bottom),
             _ => (HorizontalAlignment.Right, VerticalAlignment.Bottom)
         };
-        var scale = _viewModel.PreviewFrameWidth > 0 && PreviewFrame.Width > 0
-            ? PreviewFrame.Width / _viewModel.PreviewFrameWidth
-            : 1;
-        PreviewWatermark.Width = _viewModel.PreviewWatermarkWidth * scale;
-        PreviewWatermark.Margin = new Thickness(_viewModel.PreviewSafeMargin * scale);
+    }
+
+    private void TextWatermarkBox_PreviewTextInput(object sender, TextCompositionEventArgs e)
+    {
+        if (sender is not TextBox box) return;
+        if (VideoRules.NormalizeTextWatermark(ProposeText(box, e.Text)) != ProposeText(box, e.Text))
+            e.Handled = true;
+    }
+
+    private void TextWatermarkBox_PreviewKeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key != Key.Enter || sender is not TextBox box) return;
+        var proposed = ProposeText(box, "\n");
+        if (VideoRules.NormalizeTextWatermark(proposed) != proposed)
+            e.Handled = true;
+    }
+
+    private void TextWatermarkBox_Pasting(object sender, DataObjectPastingEventArgs e)
+    {
+        if (sender is not TextBox box) return;
+        if (!e.DataObject.GetDataPresent(DataFormats.UnicodeText))
+        {
+            e.CancelCommand();
+            return;
+        }
+
+        var paste = e.DataObject.GetData(DataFormats.UnicodeText) as string ?? "";
+        var proposed = ProposeText(box, paste);
+        var normalized = VideoRules.NormalizeTextWatermark(proposed);
+        if (normalized == proposed) return;
+        e.CancelCommand();
+        box.Text = normalized;
+        box.CaretIndex = box.Text.Length;
+    }
+
+    private static string ProposeText(TextBox box, string insertion)
+    {
+        var text = box.Text ?? "";
+        var start = Math.Clamp(box.SelectionStart, 0, text.Length);
+        var length = Math.Clamp(box.SelectionLength, 0, text.Length - start);
+        return text.Remove(start, length).Insert(start, insertion);
     }
 
     private void UpdateTransportChrome()

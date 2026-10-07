@@ -28,16 +28,12 @@ public sealed class VideoCommandBuilder
             arguments.Add("-i");
             arguments.Add(segment.Path);
         }
-        var watermarkTarget = -1;
-        if (request.AddWatermark && !string.IsNullOrWhiteSpace(request.WatermarkPath))
-        {
-            for (var index = 0; index < segments.Count; index++)
-            {
-                if (!segments[index].Watermark) continue;
-                watermarkTarget = index;
-                break;
-            }
-        }
+        var watermarkTarget = FindBrandedSegment(
+            request.AddWatermark && !string.IsNullOrWhiteSpace(request.WatermarkPath), segments);
+        var textTarget = FindBrandedSegment(
+            request.AddTextWatermark
+            && !string.IsNullOrWhiteSpace(request.TextWatermarkFontPath)
+            && !string.IsNullOrWhiteSpace(request.TextWatermarkFilePath), segments);
 
         var watermarkInput = -1;
         if (watermarkTarget >= 0)
@@ -54,7 +50,7 @@ public sealed class VideoCommandBuilder
             var fit = request.Framing == FramingMode.Fit
                 ? $"scale={request.Width}:{request.Height}:force_original_aspect_ratio=decrease,pad={request.Width}:{request.Height}:(ow-iw)/2:(oh-ih)/2:color=black"
                 : $"scale={request.Width}:{request.Height}:force_original_aspect_ratio=increase,crop={request.Width}:{request.Height}";
-            var videoLabel = index == watermarkTarget ? $"v{index}src" : $"v{index}";
+            var videoLabel = index == watermarkTarget || index == textTarget ? $"v{index}src" : $"v{index}";
             filters.Add(VideoFilter(index, segments[index], fit, request.Fps, videoLabel));
 
             var duration = Math.Max(0.01, segments[index].DurationSeconds).ToString("0.######", CultureInfo.InvariantCulture);
@@ -68,9 +64,16 @@ public sealed class VideoCommandBuilder
         if (watermarkTarget >= 0)
         {
             var logoWidth = Math.Max(2, (int)Math.Round(request.Width * request.WatermarkWidthRatio / 2) * 2);
+            var logoLabel = textTarget == watermarkTarget ? $"v{watermarkTarget}logo" : $"v{watermarkTarget}";
             filters.Add($"[{watermarkInput}:v:0]scale={logoWidth}:-1[wm]");
             var (x, y) = VideoRules.GetWatermarkCoordinates(request.Width, request.Height, request.SafeMarginRatio, request.WatermarkPosition);
-            filters.Add($"[v{watermarkTarget}src][wm]overlay=x={x}:y={y}:eof_action=repeat:shortest=0[v{watermarkTarget}]");
+            filters.Add($"[v{watermarkTarget}src][wm]overlay=x={x}:y={y}:eof_action=repeat:shortest=0[{logoLabel}]");
+        }
+
+        if (textTarget >= 0)
+        {
+            var source = watermarkTarget == textTarget ? $"v{textTarget}logo" : $"v{textTarget}src";
+            filters.Add($"[{source}]{DrawtextFilter(request)}[v{textTarget}]");
         }
 
         filters.Add($"{string.Concat(concatInputs)}concat=n={segments.Count}:v=1:a=1[basev][basea]");
@@ -83,6 +86,27 @@ public sealed class VideoCommandBuilder
         arguments.AddRange(["-r", request.Fps.ToString(CultureInfo.InvariantCulture), "-pix_fmt", "yuv420p", "-c:a", request.AudioCodec, "-b:a", $"{request.AudioBitrateKbps}k"]);
         arguments.AddRange(["-movflags", "+faststart", "-progress", "pipe:1", "-nostats", outputPath]);
         return arguments;
+    }
+
+    private static int FindBrandedSegment(bool enabled, IReadOnlyList<VideoSegment> segments)
+    {
+        if (!enabled) return -1;
+        for (var index = 0; index < segments.Count; index++)
+        {
+            if (segments[index].Watermark) return index;
+        }
+        return -1;
+    }
+
+    private static string DrawtextFilter(ExportRequest request)
+    {
+        var font = VideoRules.EscapeFilterPath(request.TextWatermarkFontPath!);
+        var file = VideoRules.EscapeFilterPath(request.TextWatermarkFilePath!);
+        var size = VideoRules.TextWatermarkFontSize(request.Width, request.Height);
+        var spacing = VideoRules.TextWatermarkLineSpacing(size);
+        var align = VideoRules.TextWatermarkAlignment(request.TextWatermarkPosition);
+        var (x, y) = VideoRules.GetTextWatermarkCoordinates(request.Width, request.Height, request.SafeMarginRatio, request.TextWatermarkPosition);
+        return $"drawtext=fontfile='{font}':textfile='{file}':expansion=none:fontsize={size.ToString(CultureInfo.InvariantCulture)}:fontcolor=white:line_spacing={spacing.ToString(CultureInfo.InvariantCulture)}:text_align={align}:shadowcolor=black@0.6:shadowx=1:shadowy=1:x={x}:y={y}";
     }
 
     private static string VideoFilter(int index, VideoSegment segment, string fit, int fps, string label)

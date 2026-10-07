@@ -82,6 +82,11 @@ public sealed record ExportRequest(
     double SafeMarginRatio,
     string OutputPath,
     double TrimStartSeconds = 0,
-    double? TrimEndSeconds = null);
+    double? TrimEndSeconds = null,
+    bool AddTextWatermark = false,
+    string TextWatermark = "",
+    WatermarkPosition TextWatermarkPosition = WatermarkPosition.BottomLeft,
+    string? TextWatermarkFontPath = null,
+    string? TextWatermarkFilePath = null);
 
 public sealed record ExportResult(string OutputPath, double DurationSeconds, long FileSizeBytes);

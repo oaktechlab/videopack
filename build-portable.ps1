@@ -47,6 +47,7 @@ New-Item -ItemType Directory -Force -Path $watermarkDirectory | Out-Null
 Get-ChildItem -LiteralPath (Join-Path $root 'resources\logos') -Filter '*.png' -File | ForEach-Object {
     Copy-Item -LiteralPath $_.FullName -Destination (Join-Path $watermarkDirectory $_.Name) -Force
 }
+Copy-RequiredAsset 'resources\font\OpenSans_SemiCondensed-Light.ttf' 'assets\fonts\OpenSans_SemiCondensed-Light.ttf'
 
 if (-not (Test-Path -LiteralPath (Join-Path $ffmpegDirectory 'ffmpeg.exe')) -or
     -not (Test-Path -LiteralPath (Join-Path $ffmpegDirectory 'ffprobe.exe'))) {

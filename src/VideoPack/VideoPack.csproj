@@ -15,12 +15,15 @@
     <RootNamespace>VideoPack</RootNamespace>
     <ApplicationIcon>Assets\videopack.ico</ApplicationIcon>
     <!-- Product version. Single source for the assembly and the UI. -->
-    <Version>1.0.1</Version>
+    <Version>1.0.2</Version>
     <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
   </PropertyGroup>
   <ItemGroup>
     <Resource Include="Assets\videopack.ico" />
     <Resource Include="Assets\videopack_logo_white.png" />
+    <Resource Include="..\..\resources\font\OpenSans_SemiCondensed-Light.ttf">
+      <Link>Fonts\OpenSans_SemiCondensed-Light.ttf</Link>
+    </Resource>
   </ItemGroup>
   <ItemGroup>
     <Content Include="..\..\data\**\*">

@@ -21,16 +21,19 @@ public sealed class ExportService(AppPaths paths, PresetService presetService)
         paths.EnsureDirectories();
         var segments = new List<VideoSegment>();
         string? stagingPath = null;
+        string? textFile = null;
         string? commandLine = null;
         var diagnostics = new StringBuilder();
         var logPath = Path.Combine(paths.LogsDirectory, $"export_{DateTime.Now:yyyyMMdd_HHmmss}_{Guid.NewGuid():N}.log");
         try
         {
             ValidateRequest(request);
+            (request, textFile) = PrepareTextWatermark(request);
             if (request.AddIntro)
                 segments.Add(await ProbeSegmentAsync(paths.ResolveAsset(presetService.Configuration.IntroLandscape), cancellationToken));
             var (keptDuration, trimStart, trimEnd) = ResolveTrim(request);
-            segments.Add(new VideoSegment(request.Source.Path, keptDuration, request.Source.HasAudio, request.AddWatermark, trimStart, trimEnd));
+            var overlayOnMain = request.AddWatermark || request.AddTextWatermark;
+            segments.Add(new VideoSegment(request.Source.Path, keptDuration, request.Source.HasAudio, overlayOnMain, trimStart, trimEnd));
             if (request.AddOutro)
             {
                 var relativeOutro = VideoRules.GetOutroAsset(request.Format, presetService.Configuration);
@@ -74,6 +77,11 @@ public sealed class ExportService(AppPaths paths, PresetService presetService)
             throw new ExportException("No se ha podido exportar el vídeo.",
                 $"{exception.Message}{Environment.NewLine}{diagnostics}", logPath);
         }
+        finally
+        {
+            if (textFile is not null && File.Exists(textFile))
+                try { File.Delete(textFile); } catch (IOException) { }
+        }
     }
 
     private async Task<VideoSegment> ProbeSegmentAsync(string assetPath, CancellationToken cancellationToken)
@@ -94,6 +102,13 @@ public sealed class ExportService(AppPaths paths, PresetService presetService)
             throw new InvalidDataException("La cortinilla inicial solo está disponible en formato 16:9.");
         if (request.AddWatermark && (string.IsNullOrWhiteSpace(request.WatermarkPath) || !File.Exists(request.WatermarkPath)))
             throw new FileNotFoundException("No se encuentra el logo seleccionado.", request.WatermarkPath);
+        if (request.AddTextWatermark && VideoRules.TextWatermarkHasContent(request.TextWatermark))
+        {
+            if (string.IsNullOrWhiteSpace(request.TextWatermarkFontPath) || !File.Exists(request.TextWatermarkFontPath))
+                throw new FileNotFoundException("No se encuentra la fuente de la mosca de texto.", request.TextWatermarkFontPath);
+            if (request.AddWatermark && request.WatermarkPosition == request.TextWatermarkPosition)
+                throw new InvalidDataException("Las dos moscas no pueden ocupar la misma esquina.");
+        }
         if (request.TrimEndSeconds is double trimEnd)
         {
             if (request.TrimStartSeconds < -0.001 || trimEnd <= request.TrimStartSeconds)
@@ -105,6 +120,17 @@ public sealed class ExportService(AppPaths paths, PresetService presetService)
                 throw new InvalidDataException("El vídeo resultante es demasiado corto.");
         }
         if (File.Exists(request.OutputPath)) throw new IOException("Ya existe un archivo con ese nombre en la carpeta de destino.");
+    }
+
+    private (ExportRequest Request, string? TextFile) PrepareTextWatermark(ExportRequest request)
+    {
+        if (!request.AddTextWatermark || !VideoRules.TextWatermarkHasContent(request.TextWatermark))
+            return (request with { AddTextWatermark = false }, null);
+
+        var text = VideoRules.NormalizeTextWatermark(request.TextWatermark);
+        var textFile = Path.Combine(paths.TempDirectory, $"mosca_{Guid.NewGuid():N}.txt");
+        File.WriteAllText(textFile, text, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
+        return (request with { TextWatermark = text, TextWatermarkFilePath = textFile }, textFile);
     }
 
     private static (double Kept, double Start, double? End) ResolveTrim(ExportRequest request)
