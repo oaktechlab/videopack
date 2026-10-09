@@ -15,7 +15,7 @@
     <RootNamespace>VideoPack</RootNamespace>
     <ApplicationIcon>Assets\videopack.ico</ApplicationIcon>
     <!-- Product version. Single source for the assembly and the UI. -->
-    <Version>1.0.2</Version>
+    <Version>1.0.3</Version>
     <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
   </PropertyGroup>
   <ItemGroup>

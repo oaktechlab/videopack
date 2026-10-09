@@ -18,7 +18,7 @@ Sirve igual para archivar un máster, publicar en YouTube o preparar una pieza ve
   - **Personalizado.** Resolución, fotogramas por segundo, códecs y bitrate a tu medida. Aparece solo cuando cambias algún parámetro.
 - **Decidir el formato.** Horizontal 16:9, vertical 9:16 o cuadrado 1:1.
 - **Encuadrar o recortar.** Encuadrar conserva todo el vídeo y a?ade bandas si hace falta. Recortar llena el marco y descarta lo que sobra. La vista previa ense?a el resultado antes de exportar.
-- **A?adir la marca.** Cortinilla de entrada, cortinilla de cierre y mosca. La mosca se incrusta solo sobre tu vídeo, en la esquina que elijas, con ocho variantes de logo. La cortinilla de entrada está disponible en formato horizontal; en vertical y cuadrado se usa la cortinilla de cierre vertical.
+- **A?adir la marca.** Cortinilla de entrada, cortinilla de cierre y mosca. La mosca se incrusta solo sobre tu vídeo, en la esquina que elijas, con diez variantes de logo. La cortinilla de entrada está disponible en formato horizontal; en vertical y cuadrado se usa la cortinilla de cierre vertical.
 - **Exportar un MP4.** Eliges carpeta y nombre. Durante la exportación ves el avance y puedes cancelarla. Al terminar puedes abrir el vídeo o la carpeta.
 
 La ayuda integrada recorre estos pasos desde la propia ventana. La interfaz tiene modo claro y modo oscuro, y recuerda el que hayas elegido.
